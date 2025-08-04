@@ -1,17 +1,19 @@
+use std::sync::Arc;
+
 use crate::{
-    graphics::renderer::{pipelines::triangle_pipeline::TrianglePipeline, renderer::Renderer},
-    resources::buffers::triangle::{TriangleBuffer, Vertex},
+    resources::{
+        manager::{ResourceId, ResourceManager},
+        vertex::{ColorVertex, VertexTrait},
+    },
     window::window::Window,
 };
 
 pub struct GraficsEngine {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    resource_manager: ResourceManager,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
-    renderer: Renderer,
-    pipeline: TrianglePipeline,
-    triangle: TriangleBuffer,
 }
 
 impl GraficsEngine {
@@ -66,35 +68,55 @@ impl GraficsEngine {
 
         surface.configure(&device, &config);
 
-        let renderer = Renderer::new();
-
-        let pipeline = TrianglePipeline::new(&device);
-
         let vertices = [
-            Vertex {
+            ColorVertex {
                 position: [0.0, 0.5, 0.0],
                 color: [1.0, 0.0, 0.0],
             },
-            Vertex {
+            ColorVertex {
                 position: [-0.5, -0.5, 0.0],
                 color: [0.0, 1.0, 0.0],
             },
-            Vertex {
+            ColorVertex {
                 position: [0.5, -0.5, 0.0],
                 color: [0.0, 0.0, 1.0],
             },
         ];
 
-        let triangle = TriangleBuffer::new(&device, &vertices);
+        let device = Arc::new(device);
+
+        let queue = Arc::new(queue);
+
+        let mut resource_manager = ResourceManager::new(device.clone(), queue.clone());
+
+        let shader_id = ResourceId::new("triangle shader id");
+
+        resource_manager.create_shader(
+            shader_id,
+            include_str!("../../assets/shaders/basic/triangle.wgsl"),
+            Some("triangle shader"),
+        );
+
+        resource_manager.create_pipeline(
+            ResourceId::new("triangle pipeline"),
+            shader_id,
+            ColorVertex::desc(),
+            surface_format,
+        );
+
+        resource_manager.create_buffer_with_data(
+            ResourceId::new("triangle buffer"),
+            bytemuck::cast_slice(&vertices),
+            wgpu::BufferUsages::VERTEX,
+            Some("vertex buffer"),
+        );
 
         GraficsEngine {
+            resource_manager,
             device,
             queue,
             surface,
             surface_config: config,
-            renderer,
-            pipeline,
-            triangle,
         }
     }
 
@@ -139,8 +161,42 @@ impl GraficsEngine {
                 label: Some("Render Encoder"),
             });
 
-        self.renderer
-            .render(&mut encoder, &view, &self.pipeline.pipeline, &self.triangle);
+        let pipeline = self
+            .resource_manager
+            .get_pipeline(&ResourceId::new("triangle pipeline"))
+            .expect("not found");
+
+        let vertex_buffer = self
+            .resource_manager
+            .get_buffer(&ResourceId::new("triangle buffer"))
+            .expect("not found");
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.5,
+                            g: 0.2,
+                            b: 0.2,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&pipeline);
+            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+            render_pass.draw(0..3, 0..1);
+        }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
