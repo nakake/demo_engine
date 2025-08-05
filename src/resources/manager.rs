@@ -2,6 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use wgpu::util::DeviceExt;
 
+use crate::core::error::{EngineError, EngineResult};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ResourceId(u64);
 
@@ -41,7 +43,7 @@ impl ResourceManager {
         data: &[u8],
         usage: wgpu::BufferUsages,
         label: Option<&str>,
-    ) -> Result<Arc<wgpu::Buffer>, String> {
+    ) -> EngineResult<Arc<wgpu::Buffer>> {
         let buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -61,7 +63,7 @@ impl ResourceManager {
         id: ResourceId,
         source: &str,
         label: Option<&str>,
-    ) -> Result<Arc<wgpu::ShaderModule>, String> {
+    ) -> EngineResult<Arc<wgpu::ShaderModule>> {
         let shader = self
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -81,8 +83,9 @@ impl ResourceManager {
         shader_id: ResourceId,
         vertex_layout: wgpu::VertexBufferLayout,
         surface_format: wgpu::TextureFormat,
-    ) -> Result<Arc<wgpu::RenderPipeline>, String> {
-        let shader = self.shaders.get(&shader_id).ok_or("Shader not found")?;
+    ) -> EngineResult<Arc<wgpu::RenderPipeline>> {
+        let shader = self.shaders.get(&shader_id)
+            .ok_or_else(|| EngineError::ResourceNotFound(format!("Shader not found: {:?}", shader_id)))?;
 
         let pipeline_layout = self
             .device

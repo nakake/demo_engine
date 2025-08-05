@@ -2,10 +2,13 @@ use std::sync::Arc;
 
 use winit::{
     application::ApplicationHandler,
-    window::{self, WindowAttributes},
+    window::WindowAttributes,
 };
 
-use crate::{graphics::engine::GraficsEngine, window::window::Window};
+use crate::{
+    graphics::engine::GraficsEngine,
+    window::window::Window,
+};
 
 pub struct App {
     window: Option<Window>,
@@ -30,11 +33,21 @@ impl ApplicationHandler for App {
                         .with_title("Demo Engine")
                         .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0)),
                 )
+                .map_err(|e| {
+                    eprintln!("Window creation error: {}", e);
+                    return;
+                })
                 .unwrap(),
         );
 
         let window = Window::new(winit_window);
-        let engine = pollster::block_on(GraficsEngine::new(window.clone()));
+        let engine = match pollster::block_on(GraficsEngine::new(window.clone())) {
+            Ok(engine) => engine,
+            Err(e) => {
+                eprintln!("Graphics engine initialization error: {}", e);
+                return;
+            }
+        };
 
         self.window = Some(window);
         self.engine = Some(engine);
@@ -43,7 +56,7 @@ impl ApplicationHandler for App {
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
         match event {
@@ -57,7 +70,9 @@ impl ApplicationHandler for App {
             }
             winit::event::WindowEvent::RedrawRequested => {
                 if let Some(engine) = &mut self.engine {
-                    engine.render();
+                    if let Err(e) = engine.render() {
+                        eprintln!("Rendering error: {}", e);
+                    }
                 }
             }
             _ => {}

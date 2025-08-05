@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    core::error::{EngineError, EngineResult},
     resources::{
         manager::{ResourceId, ResourceManager},
         vertex::{ColorVertex, VertexTrait},
@@ -17,7 +18,7 @@ pub struct GraficsEngine {
 }
 
 impl GraficsEngine {
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window) -> EngineResult<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -30,7 +31,7 @@ impl GraficsEngine {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
+            .map_err(|e| EngineError::AdapterRequest(format!("Failed to request adapter: {}", e)))?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -41,11 +42,12 @@ impl GraficsEngine {
                 trace: wgpu::Trace::default(),
             })
             .await
-            .unwrap();
+            .map_err(|e| EngineError::DeviceRequest(format!("Failed to request device: {}", e)))?;
 
         let winit_window = window.get_window();
 
-        let surface = instance.create_surface(winit_window.clone()).unwrap();
+        let surface = instance.create_surface(winit_window.clone())
+            .map_err(|e| EngineError::SurfaceCreation(format!("Failed to create surface: {}", e)))?;
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -85,7 +87,7 @@ impl GraficsEngine {
 
         let device = Arc::new(device);
 
-        let queue = Arc::new(queue);
+        let queue: Arc<wgpu::Queue> = Arc::new(queue);
 
         let mut resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
@@ -95,29 +97,29 @@ impl GraficsEngine {
             shader_id,
             include_str!("../../assets/shaders/basic/triangle.wgsl"),
             Some("triangle shader"),
-        );
+        )?;
 
         resource_manager.create_pipeline(
             ResourceId::new("triangle pipeline"),
             shader_id,
             ColorVertex::desc(),
             surface_format,
-        );
+        )?;
 
         resource_manager.create_buffer_with_data(
             ResourceId::new("triangle buffer"),
             bytemuck::cast_slice(&vertices),
             wgpu::BufferUsages::VERTEX,
             Some("vertex buffer"),
-        );
+        )?;
 
-        GraficsEngine {
+        Ok(GraficsEngine {
             resource_manager,
             device,
             queue,
             surface,
             surface_config: config,
-        }
+        })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -145,11 +147,11 @@ impl GraficsEngine {
         &self.surface_config
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self) -> EngineResult<()> {
         let frame = self
             .surface
             .get_current_texture()
-            .expect("Failed to acquire next surface texture");
+            .map_err(|e| EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e)))?;
 
         let view = frame
             .texture
@@ -164,12 +166,12 @@ impl GraficsEngine {
         let pipeline = self
             .resource_manager
             .get_pipeline(&ResourceId::new("triangle pipeline"))
-            .expect("not found");
+            .ok_or_else(|| EngineError::ResourceNotFound("triangle pipeline".to_string()))?;
 
         let vertex_buffer = self
             .resource_manager
             .get_buffer(&ResourceId::new("triangle buffer"))
-            .expect("not found");
+            .ok_or_else(|| EngineError::ResourceNotFound("triangle buffer".to_string()))?;
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -200,5 +202,6 @@ impl GraficsEngine {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+        Ok(())
     }
 }
