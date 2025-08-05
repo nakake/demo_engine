@@ -4,7 +4,7 @@ mod app;
 mod core;
 mod graphics;
 mod resources;
-mod secen;
+mod scene;
 mod window;
 
 use core::error::EngineError;

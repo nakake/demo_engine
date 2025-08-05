@@ -8,7 +8,7 @@ use crate::{
         primitives::{Primitive, triangle::Triangle},
         vertex::{ColorVertex, VertexTrait},
     },
-    secen::{Secen, render_object::RenderObject},
+    scene::{Scene, render_object::RenderObject},
     window::Window,
 };
 
@@ -18,7 +18,7 @@ pub struct GraficsEngine {
     queue: Arc<wgpu::Queue>,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
-    secen: Secen,
+    secen: Scene,
 }
 
 impl GraficsEngine {
@@ -83,7 +83,7 @@ impl GraficsEngine {
 
         let resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
-        let secen = Secen::new();
+        let secen = Scene::new();
 
         Ok(GraficsEngine {
             resource_manager,

@@ -1,12 +1,12 @@
-use crate::secen::render_object::RenderObject;
+use crate::scene::render_object::RenderObject;
 
 pub mod render_object;
 
-pub struct Secen {
+pub struct Scene {
     objects: Vec<RenderObject>,
 }
 
-impl Secen {
+impl Scene {
     pub fn new() -> Self {
         Self {
             objects: Vec::new(),
