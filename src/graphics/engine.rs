@@ -197,12 +197,12 @@ impl GraficsEngine {
             self.surface_config.format,
         );
 
-        let triagnel_mesh = Triangle::create_mesh(self.device.clone());
+        let triangle_mesh = Triangle::create_mesh(self.device.clone());
         let mesh_id = ResourceId::new("basic_triangle_mesh");
         self.resource_manager
-            .register_mesh(mesh_id, Arc::new(triagnel_mesh));
+            .register_mesh(mesh_id, Arc::new(triangle_mesh));
 
-        let triangel_object = RenderObject::new(mesh_id, pipeline_id);
-        self.secen.add_object(triangel_object);
+        let triangle_object = RenderObject::new(mesh_id, pipeline_id);
+        self.secen.add_object(triangle_object);
     }
 }
