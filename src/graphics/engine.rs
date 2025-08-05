@@ -9,7 +9,7 @@ use crate::{
         vertex::{ColorVertex, VertexTrait},
     },
     secen::{Secen, render_object::RenderObject},
-    window::window::Window,
+    window::Window,
 };
 
 pub struct GraficsEngine {
