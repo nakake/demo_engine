@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use wgpu::util::DeviceExt;
 
-use crate::core::error::{EngineError, EngineResult};
+use crate::{
+    core::error::{EngineError, EngineResult},
+    resources::mesh::Mesh,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ResourceId(u64);
@@ -25,6 +28,7 @@ pub struct ResourceManager {
     buffers: HashMap<ResourceId, Arc<wgpu::Buffer>>,
     pipelines: HashMap<ResourceId, Arc<wgpu::RenderPipeline>>,
     shaders: HashMap<ResourceId, Arc<wgpu::ShaderModule>>,
+    meshes: HashMap<ResourceId, Arc<Mesh>>,
 }
 
 impl ResourceManager {
@@ -35,6 +39,7 @@ impl ResourceManager {
             buffers: HashMap::new(),
             pipelines: HashMap::new(),
             shaders: HashMap::new(),
+            meshes: HashMap::new(),
         }
     }
     pub fn create_buffer_with_data(
@@ -84,8 +89,9 @@ impl ResourceManager {
         vertex_layout: wgpu::VertexBufferLayout,
         surface_format: wgpu::TextureFormat,
     ) -> EngineResult<Arc<wgpu::RenderPipeline>> {
-        let shader = self.shaders.get(&shader_id)
-            .ok_or_else(|| EngineError::ResourceNotFound(format!("Shader not found: {:?}", shader_id)))?;
+        let shader = self.shaders.get(&shader_id).ok_or_else(|| {
+            EngineError::ResourceNotFound(format!("Shader not found: {:?}", shader_id))
+        })?;
 
         let pipeline_layout = self
             .device
@@ -140,6 +146,20 @@ impl ResourceManager {
         Ok(pipeline)
     }
 
+    pub fn register_mesh(&mut self, id: ResourceId, mesh: Arc<Mesh>) {
+        self.buffers.insert(
+            ResourceId::new(&format!("{}_vertex", id.0)),
+            mesh.vertex_buffer.clone(),
+        );
+
+        if let Some(index_buffer) = mesh.index_buffer.clone() {
+            self.buffers
+                .insert(ResourceId::new(&format!("{}_index", id.0)), index_buffer);
+        }
+
+        self.meshes.insert(id, mesh);
+    }
+
     pub fn get_buffer(&self, id: &ResourceId) -> Option<Arc<wgpu::Buffer>> {
         self.buffers.get(id).cloned()
     }
@@ -150,5 +170,9 @@ impl ResourceManager {
 
     pub fn get_shader(&self, id: &ResourceId) -> Option<Arc<wgpu::ShaderModule>> {
         self.shaders.get(id).cloned()
+    }
+
+    pub fn get_mesh(&self, id: &ResourceId) -> Option<Arc<Mesh>> {
+        self.meshes.get(id).cloned()
     }
 }

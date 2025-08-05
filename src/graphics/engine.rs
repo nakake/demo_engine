@@ -4,8 +4,11 @@ use crate::{
     core::error::{EngineError, EngineResult},
     resources::{
         manager::{ResourceId, ResourceManager},
+        mesh::Mesh,
+        primitives::{Primitive, triangle::Triangle},
         vertex::{ColorVertex, VertexTrait},
     },
+    secen::{Secen, render_object::RenderObject},
     window::window::Window,
 };
 
@@ -15,6 +18,7 @@ pub struct GraficsEngine {
     queue: Arc<wgpu::Queue>,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
+    secen: Secen,
 }
 
 impl GraficsEngine {
@@ -31,7 +35,9 @@ impl GraficsEngine {
                 force_fallback_adapter: false,
             })
             .await
-            .map_err(|e| EngineError::AdapterRequest(format!("Failed to request adapter: {}", e)))?;
+            .map_err(|e| {
+                EngineError::AdapterRequest(format!("Failed to request adapter: {}", e))
+            })?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -46,8 +52,9 @@ impl GraficsEngine {
 
         let winit_window = window.get_window();
 
-        let surface = instance.create_surface(winit_window.clone())
-            .map_err(|e| EngineError::SurfaceCreation(format!("Failed to create surface: {}", e)))?;
+        let surface = instance.create_surface(winit_window.clone()).map_err(|e| {
+            EngineError::SurfaceCreation(format!("Failed to create surface: {}", e))
+        })?;
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -70,48 +77,13 @@ impl GraficsEngine {
 
         surface.configure(&device, &config);
 
-        let vertices = [
-            ColorVertex {
-                position: [0.0, 0.5, 0.0],
-                color: [1.0, 0.0, 0.0],
-            },
-            ColorVertex {
-                position: [-0.5, -0.5, 0.0],
-                color: [0.0, 1.0, 0.0],
-            },
-            ColorVertex {
-                position: [0.5, -0.5, 0.0],
-                color: [0.0, 0.0, 1.0],
-            },
-        ];
-
         let device = Arc::new(device);
 
         let queue: Arc<wgpu::Queue> = Arc::new(queue);
 
-        let mut resource_manager = ResourceManager::new(device.clone(), queue.clone());
+        let resource_manager = ResourceManager::new(device.clone(), queue.clone());
 
-        let shader_id = ResourceId::new("triangle shader id");
-
-        resource_manager.create_shader(
-            shader_id,
-            include_str!("../../assets/shaders/basic/triangle.wgsl"),
-            Some("triangle shader"),
-        )?;
-
-        resource_manager.create_pipeline(
-            ResourceId::new("triangle pipeline"),
-            shader_id,
-            ColorVertex::desc(),
-            surface_format,
-        )?;
-
-        resource_manager.create_buffer_with_data(
-            ResourceId::new("triangle buffer"),
-            bytemuck::cast_slice(&vertices),
-            wgpu::BufferUsages::VERTEX,
-            Some("vertex buffer"),
-        )?;
+        let secen = Secen::new();
 
         Ok(GraficsEngine {
             resource_manager,
@@ -119,6 +91,7 @@ impl GraficsEngine {
             queue,
             surface,
             surface_config: config,
+            secen,
         })
     }
 
@@ -148,10 +121,9 @@ impl GraficsEngine {
     }
 
     pub fn render(&mut self) -> EngineResult<()> {
-        let frame = self
-            .surface
-            .get_current_texture()
-            .map_err(|e| EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e)))?;
+        let frame = self.surface.get_current_texture().map_err(|e| {
+            EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e))
+        })?;
 
         let view = frame
             .texture
@@ -162,16 +134,6 @@ impl GraficsEngine {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-
-        let pipeline = self
-            .resource_manager
-            .get_pipeline(&ResourceId::new("triangle pipeline"))
-            .ok_or_else(|| EngineError::ResourceNotFound("triangle pipeline".to_string()))?;
-
-        let vertex_buffer = self
-            .resource_manager
-            .get_buffer(&ResourceId::new("triangle buffer"))
-            .ok_or_else(|| EngineError::ResourceNotFound("triangle buffer".to_string()))?;
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -195,13 +157,52 @@ impl GraficsEngine {
                 timestamp_writes: None,
             });
 
-            render_pass.set_pipeline(&pipeline);
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.draw(0..3, 0..1);
+            for object in self.secen.objects() {
+                if let (Some(pipeline), Some(mesh)) = (
+                    self.resource_manager.get_pipeline(&object.pipeline_id),
+                    self.resource_manager.get_mesh(&object.mesh_id),
+                ) {
+                    render_pass.set_pipeline(&pipeline);
+                    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+
+                    if let Some(index_buffer) = &mesh.index_buffer {
+                        render_pass
+                            .set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                        render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    } else {
+                        render_pass.draw(0..mesh.vertex_count, 0..1);
+                    }
+                }
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
         Ok(())
+    }
+
+    pub fn initial_default_scene(&mut self) {
+        let shader_id = ResourceId::new("basic_shader");
+        let _ = self.resource_manager.create_shader(
+            shader_id,
+            include_str!("../../assets/shaders/basic/triangle.wgsl"),
+            Some("Basic Shader"),
+        );
+
+        let pipeline_id = ResourceId::new("basic_pipeline");
+        let _ = self.resource_manager.create_pipeline(
+            pipeline_id,
+            shader_id,
+            ColorVertex::desc(),
+            self.surface_config.format,
+        );
+
+        let triagnel_mesh = Triangle::create_mesh(self.device.clone());
+        let mesh_id = ResourceId::new("basic_triangle_mesh");
+        self.resource_manager
+            .register_mesh(mesh_id, Arc::new(triagnel_mesh));
+
+        let triangel_object = RenderObject::new(mesh_id, pipeline_id);
+        self.secen.add_object(triangel_object);
     }
 }

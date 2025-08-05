@@ -1,14 +1,8 @@
 use std::sync::Arc;
 
-use winit::{
-    application::ApplicationHandler,
-    window::WindowAttributes,
-};
+use winit::{application::ApplicationHandler, window::WindowAttributes};
 
-use crate::{
-    graphics::engine::GraficsEngine,
-    window::window::Window,
-};
+use crate::{graphics::engine::GraficsEngine, window::window::Window};
 
 pub struct App {
     window: Option<Window>,
@@ -31,23 +25,24 @@ impl ApplicationHandler for App {
                 .create_window(
                     WindowAttributes::default()
                         .with_title("Demo Engine")
-                        .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0)),
+                        .with_inner_size(winit::dpi::PhysicalSize::new(800.0, 600.0)),
                 )
                 .map_err(|e| {
                     eprintln!("Window creation error: {}", e);
-                    return;
                 })
                 .unwrap(),
         );
 
         let window = Window::new(winit_window);
-        let engine = match pollster::block_on(GraficsEngine::new(window.clone())) {
+        let mut engine = match pollster::block_on(GraficsEngine::new(window.clone())) {
             Ok(engine) => engine,
             Err(e) => {
                 eprintln!("Graphics engine initialization error: {}", e);
                 return;
             }
         };
+
+        engine.initial_default_scene();
 
         self.window = Some(window);
         self.engine = Some(engine);

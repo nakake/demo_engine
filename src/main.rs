@@ -4,6 +4,7 @@ mod app;
 mod core;
 mod graphics;
 mod resources;
+mod secen;
 mod window;
 
 use core::error::EngineError;
@@ -13,8 +14,9 @@ fn main() -> Result<(), EngineError> {
         .map_err(|e| EngineError::EventLoopCreation(format!("Event loop creation error: {}", e)))?;
     let mut app = app::app::App::new();
 
-    event_loop.run_app(&mut app)
+    event_loop
+        .run_app(&mut app)
         .map_err(|e| EngineError::EventLoopRun(format!("Event loop run error: {}", e)))?;
-    
+
     Ok(())
 }
