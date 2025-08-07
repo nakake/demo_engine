@@ -4,8 +4,7 @@ use crate::{
     core::error::{EngineError, EngineResult},
     resources::{
         manager::{ResourceId, ResourceManager},
-        mesh::Mesh,
-        primitives::{Primitive, triangle::Triangle},
+        primitives::{Primitive, quad::Quad, triangle::Triangle},
         vertex::{ColorVertex, VertexTrait},
     },
     scene::{Scene, render_object::RenderObject},
@@ -197,7 +196,7 @@ impl GraficsEngine {
             self.surface_config.format,
         );
 
-        let triangle_mesh = Triangle::create_mesh(self.device.clone());
+        let triangle_mesh = Quad::create_mesh(self.device.clone());
         let mesh_id = ResourceId::new("basic_triangle_mesh");
         self.resource_manager
             .register_mesh(mesh_id, Arc::new(triangle_mesh));

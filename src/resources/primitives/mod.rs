@@ -1,3 +1,4 @@
+pub mod quad;
 pub mod triangle;
 
 use std::sync::Arc;
