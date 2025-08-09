@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, write};
 
 #[derive(Debug)]
 pub enum EngineError {
@@ -14,6 +14,7 @@ pub enum EngineError {
     PipelineCreation(String),
     EventLoopCreation(String),
     EventLoopRun(String),
+    SceneNotFound(String),
 }
 
 impl fmt::Display for EngineError {
@@ -23,7 +24,9 @@ impl fmt::Display for EngineError {
             EngineError::AdapterRequest(msg) => write!(f, "Adapter request error: {}", msg),
             EngineError::DeviceRequest(msg) => write!(f, "Device request error: {}", msg),
             EngineError::SurfaceCreation(msg) => write!(f, "Surface creation error: {}", msg),
-            EngineError::SurfaceConfiguration(msg) => write!(f, "Surface configuration error: {}", msg),
+            EngineError::SurfaceConfiguration(msg) => {
+                write!(f, "Surface configuration error: {}", msg)
+            }
             EngineError::RenderError(msg) => write!(f, "Render error: {}", msg),
             EngineError::ResourceNotFound(msg) => write!(f, "Resource not found: {}", msg),
             EngineError::ShaderCompilation(msg) => write!(f, "Shader compilation error: {}", msg),
@@ -31,6 +34,7 @@ impl fmt::Display for EngineError {
             EngineError::PipelineCreation(msg) => write!(f, "Pipeline creation error: {}", msg),
             EngineError::EventLoopCreation(msg) => write!(f, "Event loop creation error: {}", msg),
             EngineError::EventLoopRun(msg) => write!(f, "Event loop run error: {}", msg),
+            EngineError::SceneNotFound(msg) => write!(f, "Scene not found: {}", msg),
         }
     }
 }

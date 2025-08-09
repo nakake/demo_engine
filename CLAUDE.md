@@ -1,139 +1,185 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+このファイルは、Claude Code (claude.ai/code) がこのリポジトリでコードを扱う際の指針を提供します。
 
-## Project Overview
+## プロジェクト概要
 
-This is a Rust-based graphics engine demo built with WGPU and Winit. The project demonstrates 3D graphics rendering with a modular architecture focused on resource management, scene management, and error handling. The engine now supports mesh-based rendering with a scene system for managing render objects.
+これはWGPUとWinitを使用して構築されたRustベースのグラフィックスエンジンデモです。このプロジェクトは、リソース管理、シーン管理、カメラシステム、入力処理、エラーハンドリングに焦点を当てたモジュラーアーキテクチャによる3Dグラフィックスレンダリングを実証しています。エンジンは、レンダーオブジェクトを管理するシーンシステムと、リアルタイムキーボードカメラコントロール付きの包括的な入力処理を備えたメッシュベースのレンダリングをサポートしています。
 
-## Build and Development Commands
+## ビルドと開発コマンド
 
 ```bash
-# Build the project
+# プロジェクトをビルド
 cargo build
 
-# Run the demo
+# デモを実行
 cargo run
 
-# Build with optimizations (release mode)
+# 最適化ありでビルド（リリースモード）
 cargo build --release
 cargo run --release
 
-# Check for compilation errors without building
+# ビルドせずにコンパイルエラーをチェック
 cargo check
 
-# Run tests
+# テストを実行
 cargo test
 
-# Generate documentation
+# ドキュメントを生成
 cargo doc --open
 
-# Clean build artifacts
+# ビルドアーティファクトをクリーン
 cargo clean
 ```
 
-## Architecture Overview
+## アーキテクチャ概要
 
-The engine follows a modular architecture with clear separation of concerns:
+エンジンは関心の分離が明確なモジュラーアーキテクチャに従っています：
 
-### Core Modules
+### コアモジュール
 
-- **`app/`** - Application lifecycle management using Winit's ApplicationHandler
-  - `App` struct handles window events, rendering, and engine coordination
-  - Manages window creation with 800x600 default size and "Demo Engine" title
-  - Initializes default scene with triangle mesh
+- **`app/`** - WinitのApplicationHandlerを使用したアプリケーションライフサイクル管理
+  - `App`構造体はウィンドウイベント、レンダリング、エンジン協調を処理
+  - 800x600のデフォルトサイズと「Demo Engine」タイトルでウィンドウ作成を管理
+  - キーボード入力処理と継続的なレンダリングループを管理
+  - `request_redraw()`による適切なフレーム更新制御
+  - クワッドメッシュでデフォルトシーンを初期化
 
-- **`core/`** - Core engine types and error handling
-  - `EngineError` enum with comprehensive error types (English messages)
-  - `EngineResult<T>` type alias for consistent error handling
-  - All unwrap() calls have been replaced with proper error handling
+- **`core/`** - コアエンジンタイプとエラーハンドリング
+  - 包括的なエラータイプ（英語メッセージ）を持つ`EngineError`列挙型
+  - 一貫性のあるエラー処理のための`EngineResult<T>`型エイリアス
+  - すべてのunwrap()呼び出しは適切なエラーハンドリングに置き換えられています
 
-- **`graphics/`** - WGPU-based rendering engine
-  - `GraficsEngine` manages WGPU device, queue, surface configuration
-  - Handles render loop, surface resizing, and frame presentation
-  - Integrates with scene system for rendering multiple objects
-  - `initial_default_scene()` sets up basic triangle demo
+- **`graphics/`** - WGPUベースのレンダリングエンジン
+  - `GraphicsEngine`はWGPUデバイス、キュー、サーフェス設定を管理（タイポ修正済み）
+  - レンダーループ、サーフェスリサイズ、フレーム表示を処理
+  - 複数オブジェクトのレンダリングのためのシーンシステムとの統合
+  - `initial_default_scene()`は基本的なクワッドデモを設定
+  - 内部的に`scene`フィールドでSceneを管理
 
-- **`resources/`** - Resource management system
-  - `ResourceManager` provides centralized management of GPU resources
-  - `ResourceId` uses string hashing for resource identification
-  - Manages buffers, shaders, render pipelines, and meshes with Arc<T> for sharing
-  - `VertexTrait` defines vertex buffer layout interface
-  - Includes `ColorVertex` and `Vertex` (PBR-ready) implementations
-  - `Mesh` struct for vertex/index buffer management
-  - Primitive generation (Triangle) for basic shapes
+- **`resources/`** - リソース管理システム
+  - `ResourceManager`はGPUリソースの集約管理を提供
+  - `ResourceId`はリソース識別のための文字列ハッシュを使用
+  - Arc<T>での共有のためのバッファ、シェーダー、レンダーパイプライン、メッシュを管理
+  - `VertexTrait`は頂点バッファレイアウトインターフェースを定義
+  - `ColorVertex`と`Vertex`（PBR対応）の実装を含む
+  - 頂点/インデックスバッファ管理のための`Mesh`構造体
+  - 基本形状のためのプリミティブ生成（Triangle、Quad）
 
-- **`secen/`** - Scene management system (Note: typo in module name)
-  - `Secen` struct manages collections of render objects
-  - `RenderObject` links mesh and pipeline for rendering
-  - Supports adding/removing objects from scene
+- **`scene/`** - シーン管理システム
+  - `Scene`トレイトによる統一されたシーンインターフェース
+  - `DemoScene`が`Scene`トレイトを実装し、カメラと入力統合を提供
+  - `RenderObject`はレンダリングのためのメッシュとパイプラインをリンク
+  - ビュー・プロジェクション行列変換のための`Camera`システム
+  - カメラユニフォームバッファとバインドグループ管理
+  - リアルタイムカメラ移動と回転のサポート
+  - シーンからのオブジェクトの追加/削除をサポート
 
-- **`window/`** - Window abstraction layer
-  - Wraps Winit window in custom `Window` struct with Arc for sharing
+- **`input/`** - 入力処理システム
+  - `InputState`はキーボードとマウスの状態を管理
+  - 効率的な検索のためのHashSetを使用して押されたキーを追跡
+  - カメラコントロールのためのマウス位置とデルタ追跡
+  - リアルタイムキーボード入力とカメラ制御の統合
+  - WASD/QE移動キー、矢印キー回転、ESC終了をサポート
 
-### Key Dependencies
+- **`window/`** - ウィンドウ抽象化レイヤー
+  - 共有のためのArcを持つカスタム`Window`構造体でWinitウィンドウをラップ
 
-- `wgpu` (26.0.1) - Modern graphics API abstraction
-- `winit` (0.30.12) - Cross-platform windowing
-- `glam` (0.30.5) - Math library for 3D graphics
-- `bytemuck` - Safe transmutation for vertex data
-- `pollster` - Async runtime for WGPU initialization
+### 主要な依存関係
 
-### Resource System
+- `wgpu` (26.0.1) - モダンなグラフィックスAPI抽象化
+- `winit` (0.30.12) - クロスプラットフォームウィンドウイング
+- `glam` (0.30.5) - 3Dグラフィックス用数学ライブラリ
+- `bytemuck` - 頂点データの安全な変換
+- `pollster` - WGPU初期化のための非同期ランタイム
+- `crevice` - glam統合によるGPUユニフォームバッファレイアウト（現在は未使用）
 
-The engine uses a hash-based resource identification system:
-- Resources are identified by `ResourceId` generated from string names
-- `ResourceManager` stores resources in HashMaps with Arc wrappers for sharing
-- Supports: vertex buffers, index buffers, shaders (WGSL), render pipelines, and meshes
-- `register_mesh()` automatically manages vertex/index buffer registration
-- Primitive generation system for creating basic geometric shapes
+### リソースシステム
 
-### Rendering Pipeline
+エンジンはハッシュベースのリソース識別システムを使用：
+- リソースはDefaultHasherを使用して文字列名から生成される`ResourceId`によって識別
+- `ResourceManager`は共有のためのArcラッパーを持つHashMapsにリソースを格納
+- サポート：頂点バッファ、インデックスバッファ、シェーダー（WGSL）、レンダーパイプライン、メッシュ
+- `register_mesh()`は頂点/インデックスバッファ登録を自動管理
+- 基本的な幾何学形状作成のためのプリミティブ生成システム
 
-1. WGPU instance/adapter/device initialization in `GraficsEngine::new()`
-2. Surface configuration with automatic format selection (prefers sRGB)
-3. Scene initialization with `initial_default_scene()`
-4. Shader compilation from WGSL files in `assets/shaders/`  
-5. Render pipeline creation with vertex layout binding
-6. Frame rendering iterates through scene objects, binding pipelines and meshes
-7. Supports both indexed and non-indexed mesh rendering
+### レンダリングパイプライン
 
-### Scene System
+1. `GraphicsEngine::new()`でのWGPUインスタンス/アダプター/デバイス初期化
+2. 自動フォーマット選択によるサーフェス設定（sRGBを優先）
+3. 渡されたシーンインスタンスによる動的シーン初期化
+4. `assets/shaders/basic/`のWGSLファイルからのシェーダーコンパイル
+5. カメラユニフォームバインドグループレイアウトでのレンダーパイプライン作成
+6. 毎フレームのカメラユニフォームバッファ更新と統合
+7. フレームレンダリングはシーンオブジェクトを反復し、パイプラインとメッシュをバインド
+8. インデックス付きと非インデックスのメッシュレンダリングの両方をサポート
+9. 透明度サポートのためのアルファブレンディングが有効
+10. `request_redraw()`による継続的なレンダリングループ制御
 
-- Scene objects are managed by the `Secen` struct
-- Each `RenderObject` links a mesh ID with a pipeline ID
-- Rendering loop iterates through all scene objects
-- Automatic vertex/index buffer binding based on mesh type
+### シーンシステム
 
-### Error Handling
+- シーンオブジェクトは`Scene`トレイトによって管理
+- `DemoScene`実装がカメラ、ユニフォーム、入力処理を統合
+- 各`RenderObject`はメッシュIDとパイプラインIDをリンク
+- レンダリングループはすべてのシーンオブジェクトを反復
+- メッシュタイプに基づく自動頂点/インデックスバッファバインディング
+- ビュー/プロジェクション変換とGPUユニフォーム更新のためのカメラシステム
+- カメラバインドグループは全レンダーオブジェクトで共有
 
-- Comprehensive error system with `EngineError` enum
-- All error messages in English
-- No unwrap() calls - all errors properly handled
-- Graceful degradation when resources are missing
+### 入力システム
 
-### Current Demo
+- `InputState`はすべてのキーボードとマウス入力を追跡
+- 効率的な状態クエリのためのHashSetベースのキー追跡
+- カメラ移動のためのマウス位置とデルタ計算
+- メインアプリケーションループに統合された入力処理
+- リアルタイムカメラ制御：WASD移動、QE上下移動、矢印キー回転
+- delta time計算によるフレームレート独立の滑らかな移動
 
-The current implementation renders a single colored triangle:
-- Generated using Triangle primitive with position and color attributes
-- Basic WGSL shader with vertex and fragment stages
-- Scene-based rendering system with proper resource management
-- Clear color: RGB(0.5, 0.2, 0.2) - reddish brown background
+### エラーハンドリング
 
-## File Structure Notes
+- `EngineError`列挙型による包括的なエラーシステム
+- すべてのエラーメッセージは英語
+- `EngineResult<T>`を使用した適切なエラー伝播
+- リソースが見つからない場合の優雅な劣化
+- プロダクションコードでのunwrap()呼び出しなし
 
-- Shaders are stored in `assets/shaders/basic/` and embedded at compile time
-- Vertex types implement `VertexTrait` for WGPU buffer layout generation
-- The `Vertex` struct is prepared for PBR rendering with normal, UV, and tangent data
-- Module structure uses standard Rust conventions with `mod.rs` files
-- Note: `secen` module has a typo in the name (should be `scene`)
-- Primitive shapes are generated in `resources/primitives/` for basic geometry
-- All async operations use `pollster::block_on` for simplicity
+### 現在のデモ
 
-## Development Notes
+現在の実装は3Dカメラ制御付きの4色グラデーションクワッドをレンダリングします：
+- `Quad::create_mesh()`で生成された4頂点の四角形（赤、黄、青、黄のグラデーション）
+- カメラビュー・プロジェクション行列統合付きの`triangle.wgsl`シェーダー
+- 適切なリソース管理によるシーンベースのレンダリングシステム
+- クリアカラー：RGB(0.5, 0.2, 0.2) - 赤茶色の背景
+- リアルタイムキーボードカメラコントロール：
+  - **WASD**: 前後左右移動
+  - **Q/E**: 上下移動
+  - **矢印キー**: カメラ回転（水平・垂直）
+  - **ESC**: アプリケーション終了
+- インデックスバッファを使用した効率的なレンダリング（6インデックス）
+- デルタタイム計算による滑らかな60FPS動作
+- 継続的なレンダリングループと`request_redraw()`制御
 
-- The engine prioritizes proper error handling over unwrap() calls
-- Resource management uses Arc for safe sharing between components  
-- Scene system allows for easy addition/removal of render objects
-- The architecture supports extending with more complex rendering features
-- Current focus is on basic triangle rendering with plans for more primitives
+## ファイル構造ノート
+
+- シェーダーは`assets/shaders/basic/`に格納され、`include_str!`を使用してコンパイル時に埋め込まれます
+- 頂点タイプはWGPUバッファレイアウト生成のために`VertexTrait`を実装
+- `Vertex`構造体は法線、UV、接線データを持つPBRレンダリングのために準備されています
+- モジュール構造は`mod.rs`ファイルでの標準的なRust規約を使用
+- プリミティブ形状は基本的な幾何学のために`resources/primitives/`で生成
+- すべての非同期操作は簡単さのために`pollster::block_on`を使用
+- 頂点構造ドキュメントのためにvertex.rsに日本語コメントが存在
+
+## 開発ノート
+
+- エンジンはunwrap()呼び出しよりも適切なエラーハンドリングを優先
+- リソース管理はコンポーネント間での安全な共有のためにArcを使用
+- シーンシステムはレンダーオブジェクトの簡単な追加/削除を可能にします
+- 入力システムはマウスとキーボードサポートでの拡張性のために設計
+- アーキテクチャはより複雑なレンダリング機能での拡張をサポート
+- リアルタイム3Dカメラ制御付きのインタラクティブレンダリングデモ
+- 注：以前は構造体名に「GraficsEngine」というタイポがありましたが修正されています
+- 全てのタイポが修正されて正しいコードになっています
+- カメラシステムは実装済みで詳細な日本語ドキュメントが含まれています
+- ユニフォームシステム（`CameraUniform`）でビュー・プロジェクション行列を管理
+- キー入力デバッグシステムによる問題解決とレンダリングループ最適化済み
+- Winitの`request_redraw()`による適切なフレーム制御実装済み

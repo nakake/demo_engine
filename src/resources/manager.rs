@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, wgc::device::queue};
 
 use crate::{
     core::error::{EngineError, EngineResult},
@@ -25,21 +25,29 @@ impl ResourceId {
 pub struct ResourceManager {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
+    surface_format: wgpu::TextureFormat,
     buffers: HashMap<ResourceId, Arc<wgpu::Buffer>>,
     pipelines: HashMap<ResourceId, Arc<wgpu::RenderPipeline>>,
     shaders: HashMap<ResourceId, Arc<wgpu::ShaderModule>>,
     meshes: HashMap<ResourceId, Arc<Mesh>>,
+    bind_groups: HashMap<ResourceId, Arc<wgpu::BindGroup>>,
 }
 
 impl ResourceManager {
-    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+    pub fn new(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
         ResourceManager {
             device,
             queue,
+            surface_format,
             buffers: HashMap::new(),
             pipelines: HashMap::new(),
             shaders: HashMap::new(),
             meshes: HashMap::new(),
+            bind_groups: HashMap::new(),
         }
     }
     pub fn create_buffer_with_data(
@@ -61,6 +69,29 @@ impl ResourceManager {
         self.buffers.insert(id, arc_buffer.clone());
 
         Ok(arc_buffer)
+    }
+
+    pub fn create_uniform_buffer<T: bytemuck::Pod>(
+        &mut self,
+        id: ResourceId,
+        data: &T,
+    ) -> EngineResult<Arc<wgpu::Buffer>> {
+        let buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[*data]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let arc_buffer = Arc::new(buffer);
+        self.buffers.insert(id, arc_buffer.clone());
+        Ok(arc_buffer)
+    }
+
+    pub fn update_uniform_buffer<T: bytemuck::Pod>(&mut self, buffer: &wgpu::Buffer, data: &T) {
+        self.queue
+            .write_buffer(buffer, 0, bytemuck::cast_slice(&[*data]));
     }
 
     pub fn create_shader(
@@ -88,6 +119,7 @@ impl ResourceManager {
         shader_id: ResourceId,
         vertex_layout: wgpu::VertexBufferLayout,
         surface_format: wgpu::TextureFormat,
+        bind_group_layouts: &[&wgpu::BindGroupLayout],
     ) -> EngineResult<Arc<wgpu::RenderPipeline>> {
         let shader = self.shaders.get(&shader_id).ok_or_else(|| {
             EngineError::ResourceNotFound(format!("Shader not found: {:?}", shader_id))
@@ -97,7 +129,7 @@ impl ResourceManager {
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts,
                 push_constant_ranges: &[],
             });
 
@@ -146,6 +178,27 @@ impl ResourceManager {
         Ok(pipeline)
     }
 
+    pub fn create_bind_group(
+        &mut self,
+        id: ResourceId,
+        layout: &wgpu::BindGroupLayout,
+        entries: &[wgpu::BindGroupEntry],
+    ) -> EngineResult<Arc<wgpu::BindGroup>> {
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Camera Bind Group"),
+            layout,
+            entries,
+        });
+
+        let arc_bind_group = Arc::new(bind_group);
+        self.bind_groups.insert(id, arc_bind_group.clone());
+        Ok(arc_bind_group)
+    }
+
+    pub fn get_bind_group(&self, id: &ResourceId) -> Option<Arc<wgpu::BindGroup>> {
+        self.bind_groups.get(id).cloned()
+    }
+
     pub fn register_mesh(&mut self, id: ResourceId, mesh: Arc<Mesh>) {
         self.buffers.insert(
             ResourceId::new(&format!("{}_vertex", id.0)),
@@ -158,6 +211,14 @@ impl ResourceManager {
         }
 
         self.meshes.insert(id, mesh);
+    }
+
+    pub fn get_device(&self) -> Arc<wgpu::Device> {
+        self.device.clone()
+    }
+
+    pub fn get_surface_format(&self) -> wgpu::TextureFormat {
+        self.surface_format
     }
 
     pub fn get_buffer(&self, id: &ResourceId) -> Option<Arc<wgpu::Buffer>> {

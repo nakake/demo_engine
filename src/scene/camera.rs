@@ -47,4 +47,42 @@ impl Camera {
 
         proj * veiw
     }
+
+    /// カメラを前後に移動
+    pub fn move_forward(&mut self, delta: f32) {
+        let forward = (self.target - self.eye).normalize();
+        self.eye += forward * delta;
+        self.target += forward * delta;
+    }
+
+    /// カメラを左右に移動
+    pub fn move_right(&mut self, delta: f32) {
+        let forward = (self.target - self.eye).normalize();
+        let right = forward.cross(self.up).normalize();
+        self.eye += right * delta;
+        self.target += right * delta;
+    }
+
+    /// カメラを上下に移動
+    pub fn move_up(&mut self, delta: f32) {
+        self.eye += self.up * delta;
+        self.target += self.up * delta;
+    }
+
+    /// カメラを回転（水平）
+    pub fn rotate_horizontal(&mut self, angle: f32) {
+        let rotation = glam::Mat3::from_rotation_y(angle);
+        let direction = self.target - self.eye;
+        let new_direction = rotation * direction;
+        self.target = self.eye + new_direction;
+    }
+
+    /// カメラを回転（垂直）
+    pub fn rotate_vertical(&mut self, angle: f32) {
+        let forward = (self.target - self.eye).normalize();
+        let right = forward.cross(self.up).normalize();
+        let rotation = glam::Mat3::from_axis_angle(right, angle);
+        let new_direction = rotation * forward;
+        self.target = self.eye + new_direction;
+    }
 }

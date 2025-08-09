@@ -7,21 +7,21 @@ use crate::{
         primitives::{Primitive, quad::Quad, triangle::Triangle},
         vertex::{ColorVertex, VertexTrait},
     },
-    scene::{Scene, render_object::RenderObject},
+    scene::{Scene, camera, render_object::RenderObject},
     window::Window,
 };
 
-pub struct GraficsEngine {
+pub struct GraphicsEngine {
     resource_manager: ResourceManager,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
-    secen: Scene,
+    scene: Box<dyn Scene>,
 }
 
-impl GraficsEngine {
-    pub async fn new(window: Window) -> EngineResult<Self> {
+impl GraphicsEngine {
+    pub async fn new(window: Window, mut scene: Box<dyn Scene>) -> EngineResult<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -80,17 +80,19 @@ impl GraficsEngine {
 
         let queue: Arc<wgpu::Queue> = Arc::new(queue);
 
-        let resource_manager = ResourceManager::new(device.clone(), queue.clone());
+        let mut resource_manager =
+            ResourceManager::new(device.clone(), queue.clone(), surface_format);
 
-        let secen = Scene::new();
+        // シーンを初期化
+        scene.initialize(&mut resource_manager);
 
-        Ok(GraficsEngine {
+        Ok(GraphicsEngine {
             resource_manager,
             device,
             queue,
             surface,
             surface_config: config,
-            secen,
+            scene,
         })
     }
 
@@ -119,7 +121,10 @@ impl GraficsEngine {
         &self.surface_config
     }
 
-    pub fn render(&mut self) -> EngineResult<()> {
+    pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {
+        // シーン更新
+        println!("GraphicsEngine::render called with dt={}", dt);
+        self.scene.update(dt, input);
         let frame = self.surface.get_current_texture().map_err(|e| {
             EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e))
         })?;
@@ -127,6 +132,13 @@ impl GraficsEngine {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // カメラユニフォーム更新（毎フレーム）
+        self.scene.update_camera_uniform();
+        if let Some(camera_buffer) = self.scene.get_camera_buffer() {
+            self.resource_manager
+                .update_uniform_buffer(camera_buffer.as_ref(), self.scene.get_camera_uniform());
+        }
 
         let mut encoder = self
             .device
@@ -156,7 +168,12 @@ impl GraficsEngine {
                 timestamp_writes: None,
             });
 
-            for object in self.secen.objects() {
+            // カメラバインドグループを一度だけ設定（全オブジェクト共通）
+            if let Some(camera_bind_group) = self.scene.get_camera_bind_group() {
+                render_pass.set_bind_group(0, camera_bind_group.as_ref(), &[]);
+            }
+
+            for object in self.scene.as_ref().get_render_objects() {
                 if let (Some(pipeline), Some(mesh)) = (
                     self.resource_manager.get_pipeline(&object.pipeline_id),
                     self.resource_manager.get_mesh(&object.mesh_id),
@@ -178,30 +195,5 @@ impl GraficsEngine {
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
         Ok(())
-    }
-
-    pub fn initial_default_scene(&mut self) {
-        let shader_id = ResourceId::new("basic_shader");
-        let _ = self.resource_manager.create_shader(
-            shader_id,
-            include_str!("../../assets/shaders/basic/triangle.wgsl"),
-            Some("Basic Shader"),
-        );
-
-        let pipeline_id = ResourceId::new("basic_pipeline");
-        let _ = self.resource_manager.create_pipeline(
-            pipeline_id,
-            shader_id,
-            ColorVertex::desc(),
-            self.surface_config.format,
-        );
-
-        let triangle_mesh = Quad::create_mesh(self.device.clone());
-        let mesh_id = ResourceId::new("basic_triangle_mesh");
-        self.resource_manager
-            .register_mesh(mesh_id, Arc::new(triangle_mesh));
-
-        let triangle_object = RenderObject::new(mesh_id, pipeline_id);
-        self.secen.add_object(triangle_object);
     }
 }
