@@ -1,5 +1,6 @@
 use crate::scene::render_object::RenderObject;
 
+pub mod camera;
 pub mod render_object;
 
 pub struct Scene {
