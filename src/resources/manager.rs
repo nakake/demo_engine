@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use wgpu::{util::DeviceExt, wgc::device::queue};
+use wgpu::util::DeviceExt;
 
 use crate::{
     core::error::{EngineError, EngineResult},
@@ -50,6 +50,8 @@ impl ResourceManager {
             bind_groups: HashMap::new(),
         }
     }
+
+    #[allow(dead_code)]
     pub fn create_buffer_with_data(
         &mut self,
         id: ResourceId,
@@ -195,10 +197,6 @@ impl ResourceManager {
         Ok(arc_bind_group)
     }
 
-    pub fn get_bind_group(&self, id: &ResourceId) -> Option<Arc<wgpu::BindGroup>> {
-        self.bind_groups.get(id).cloned()
-    }
-
     pub fn register_mesh(&mut self, id: ResourceId, mesh: Arc<Mesh>) {
         self.buffers.insert(
             ResourceId::new(&format!("{}_vertex", id.0)),
@@ -221,16 +219,8 @@ impl ResourceManager {
         self.surface_format
     }
 
-    pub fn get_buffer(&self, id: &ResourceId) -> Option<Arc<wgpu::Buffer>> {
-        self.buffers.get(id).cloned()
-    }
-
     pub fn get_pipeline(&self, id: &ResourceId) -> Option<Arc<wgpu::RenderPipeline>> {
         self.pipelines.get(id).cloned()
-    }
-
-    pub fn get_shader(&self, id: &ResourceId) -> Option<Arc<wgpu::ShaderModule>> {
-        self.shaders.get(id).cloned()
     }
 
     pub fn get_mesh(&self, id: &ResourceId) -> Option<Arc<Mesh>> {

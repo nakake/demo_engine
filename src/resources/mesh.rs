@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use wgpu::util::DeviceExt;
 
-use crate::resources::vertex;
-
 pub struct Mesh {
     pub vertex_buffer: Arc<wgpu::Buffer>,
     pub index_buffer: Option<Arc<wgpu::Buffer>>,

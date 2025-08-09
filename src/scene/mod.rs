@@ -1,7 +1,5 @@
 use crate::{
-    input::InputState,
-    resources::manager::ResourceManager,
-    scene::{camera::Camera, render_object::RenderObject},
+    input::InputState, resources::manager::ResourceManager, scene::render_object::RenderObject,
 };
 
 pub mod camera;
@@ -27,8 +25,6 @@ impl SceneId {
 pub trait Scene {
     fn initialize(&mut self, resource_manager: &mut ResourceManager);
     fn get_render_objects(&self) -> &[RenderObject];
-    fn get_camera(&self) -> &Camera;
-    fn get_camera_mut(&mut self) -> &mut Camera;
     fn get_camera_bind_group(&self) -> Option<&std::sync::Arc<wgpu::BindGroup>>;
     fn get_camera_buffer(&self) -> Option<&std::sync::Arc<wgpu::Buffer>>;
     fn get_camera_uniform(&self) -> &crate::resources::uniforms::CameraUniform;

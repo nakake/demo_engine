@@ -3,7 +3,9 @@ use std::sync::Arc;
 use winit::{application::ApplicationHandler, window::WindowAttributes};
 
 use crate::{
-    graphics::engine::GraphicsEngine, input::InputState, scene::demo_scene::DemoScene,
+    graphics::engine::GraphicsEngine,
+    input::InputState,
+    scene::{SceneId, demo_scene::DemoScene, manager::SceneManager},
     window::Window,
 };
 
@@ -12,6 +14,7 @@ pub struct App {
     engine: Option<GraphicsEngine>,
     input_state: InputState,
     last_frame_time: std::time::Instant,
+    scene_manager: SceneManager,
 }
 
 impl App {
@@ -21,6 +24,7 @@ impl App {
             engine: None,
             input_state: InputState::new(),
             last_frame_time: std::time::Instant::now(),
+            scene_manager: SceneManager::new(),
         }
     }
 }
@@ -40,10 +44,24 @@ impl ApplicationHandler for App {
                 .unwrap(),
         );
 
+        let scene_id = SceneId::new("Demo_Scene");
         let demo_scene = Box::new(DemoScene::new());
 
+        self.scene_manager.register_scene(scene_id, demo_scene);
+        if let Err(e) = self.scene_manager.set_current_scene(scene_id) {
+            eprintln!("Failed to set current scene: {}", e);
+            return;
+        }
+
         let window = Window::new(winit_window);
-        let engine = match pollster::block_on(GraphicsEngine::new(window.clone(), demo_scene)) {
+
+        // SceneManagerから現在のシーンを取り出す（所有権を移動）
+        let current_scene = self
+            .scene_manager
+            .take_current_scene()
+            .expect("No current scene set");
+
+        let engine = match pollster::block_on(GraphicsEngine::new(window.clone(), current_scene)) {
             Ok(engine) => engine,
             Err(e) => {
                 eprintln!("Graphics engine initialization error: {}", e);
@@ -86,21 +104,15 @@ impl ApplicationHandler for App {
                 }
 
                 self.input_state.reset_mouse_delta();
-
-                // 次のフレームをリクエストして継続的なレンダリングを維持
-                if let Some(window) = &self.window {
-                    window.get_window().request_redraw();
-                }
             }
-            winit::event::WindowEvent::KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => {
+            winit::event::WindowEvent::KeyboardInput { event, .. } => {
                 println!("KeyboardInput event received: {:?}", event);
                 self.input_state.process_keybord(&event);
 
-                if self.input_state.is_key_pressed(winit::keyboard::KeyCode::Escape) {
+                if self
+                    .input_state
+                    .is_key_pressed(winit::keyboard::KeyCode::Escape)
+                {
                     event_loop.exit();
                 }
 
@@ -109,17 +121,10 @@ impl ApplicationHandler for App {
                     window.get_window().request_redraw();
                 }
             }
-            winit::event::WindowEvent::MouseInput {
-                device_id,
-                state,
-                button,
-            } => {
+            winit::event::WindowEvent::MouseInput { state, button, .. } => {
                 self.input_state.process_mouse_input(button, state);
             }
-            winit::event::WindowEvent::CursorMoved {
-                device_id,
-                position,
-            } => {
+            winit::event::WindowEvent::CursorMoved { position, .. } => {
                 self.input_state
                     .set_mouse_position(position.x as f32, position.y as f32);
             }

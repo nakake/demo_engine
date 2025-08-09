@@ -2,12 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     core::error::{EngineError, EngineResult},
-    resources::{
-        manager::{ResourceId, ResourceManager},
-        primitives::{Primitive, quad::Quad, triangle::Triangle},
-        vertex::{ColorVertex, VertexTrait},
-    },
-    scene::{Scene, camera, render_object::RenderObject},
+    resources::manager::ResourceManager,
+    scene::Scene,
     window::Window,
 };
 
@@ -103,22 +99,6 @@ impl GraphicsEngine {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface.configure(&self.device, &self.surface_config);
-    }
-
-    pub fn get_device(&self) -> &wgpu::Device {
-        &self.device
-    }
-
-    pub fn get_queue(&self) -> &wgpu::Queue {
-        &self.queue
-    }
-
-    pub fn get_surface(&self) -> &wgpu::Surface<'static> {
-        &self.surface
-    }
-
-    pub fn get_surface_config(&self) -> &wgpu::SurfaceConfiguration {
-        &self.surface_config
     }
 
     pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {

@@ -53,6 +53,7 @@ impl InputState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
         self.mouse_buttons.contains(&button)
     }

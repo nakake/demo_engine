@@ -3,7 +3,7 @@ use crate::resources::manager::ResourceId;
 pub struct RenderObject {
     pub mesh_id: ResourceId,
     pub pipeline_id: ResourceId,
-    pub transform: glam::Mat4,
+    pub _transform: glam::Mat4,
 }
 
 impl RenderObject {
@@ -11,7 +11,7 @@ impl RenderObject {
         Self {
             mesh_id,
             pipeline_id,
-            transform: glam::Mat4::IDENTITY,
+            _transform: glam::Mat4::IDENTITY,
         }
     }
 }

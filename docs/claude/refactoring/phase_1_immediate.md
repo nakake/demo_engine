@@ -13,10 +13,11 @@
 **対象**:
 ```rust
 // 修正対象
-src/scene/mod.rs    // secen → scene フォルダ名修正は後回し
 src/core/error.rs   // unused import `write` 削除
 src/graphics/engine.rs // unused imports 削除
 src/resources/manager.rs // unused imports 削除
+src/scene/demo_scene.rs // unused imports 削除
+src/input/mod.rs    // unused imports 削除
 ```
 
 **実施内容**:

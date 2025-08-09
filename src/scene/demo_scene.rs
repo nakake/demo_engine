@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use wgpu::wgc::device;
-
 use crate::{
     input::InputState,
     resources::{
@@ -116,14 +114,6 @@ impl Scene for DemoScene {
         &self.render_objects
     }
 
-    fn get_camera(&self) -> &Camera {
-        &self.camera
-    }
-
-    fn get_camera_mut(&mut self) -> &mut Camera {
-        &mut self.camera
-    }
-
     fn get_camera_bind_group(&self) -> Option<&Arc<wgpu::BindGroup>> {
         self.camera_bind_group.as_ref()
     }
@@ -188,4 +178,3 @@ impl Scene for DemoScene {
         }
     }
 }
-

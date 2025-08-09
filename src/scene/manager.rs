@@ -1,4 +1,4 @@
-use std::{boxed, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
     core::error::{EngineError, EngineResult},
@@ -35,14 +35,17 @@ impl SceneManager {
         }
     }
 
-    pub fn get_current_scene(&self) -> Option<&Box<dyn Scene>> {
+    /// 現在のシーンを SceneManager から取り出す（所有権を移動）
+    pub fn take_current_scene(&mut self) -> Option<Box<dyn Scene>> {
         if let Some(id) = self.current_scene_id {
-            self.scenes.get(&id)
+            self.current_scene_id = None;
+            self.scenes.remove(&id)
         } else {
             None
         }
     }
 
+    #[allow(clippy::borrowed_box)]
     pub fn get_current_scene_mut(&mut self) -> Option<&mut Box<dyn Scene>> {
         if let Some(id) = self.current_scene_id {
             self.scenes.get_mut(&id)
@@ -51,6 +54,7 @@ impl SceneManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn update(&mut self, dt: f32, input: &InputState) {
         if let Some(scene) = self.get_current_scene_mut() {
             scene.update(dt, input);
