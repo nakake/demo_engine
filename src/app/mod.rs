@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use winit::{application::ApplicationHandler, keyboard::KeyCode, window::WindowAttributes};
 
-use crate::{graphics::engine::GraficsEngine, input::InputState, window::Window};
+use crate::{graphics::engine::GraphicsEngine, input::InputState, window::Window};
 
 pub struct App {
     window: Option<Window>,
-    engine: Option<GraficsEngine>,
+    engine: Option<GraphicsEngine>,
     input_state: InputState,
 }
 
@@ -36,7 +36,7 @@ impl ApplicationHandler for App {
         );
 
         let window = Window::new(winit_window);
-        let mut engine = match pollster::block_on(GraficsEngine::new(window.clone())) {
+        let mut engine = match pollster::block_on(GraphicsEngine::new(window.clone())) {
             Ok(engine) => engine,
             Err(e) => {
                 eprintln!("Graphics engine initialization error: {}", e);
