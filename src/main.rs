@@ -3,6 +3,7 @@ use winit::event_loop;
 mod app;
 mod core;
 mod graphics;
+mod input;
 mod resources;
 mod scene;
 mod window;
