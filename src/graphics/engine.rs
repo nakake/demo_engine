@@ -1,23 +1,26 @@
 use std::sync::Arc;
 
 use crate::{
-    core::error::{EngineError, EngineResult},
+    core::{
+        config::RenderingConfig,
+        error::{EngineError, EngineResult},
+    },
     resources::manager::ResourceManager,
     scene::Scene,
     window::Window,
 };
 
 /// WGPU-based 3D graphics rendering engine.
-/// 
+///
 /// Manages GPU resources, handles scene rendering, and coordinates between
 /// the graphics hardware and scene objects.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rust
 /// use demo_engine::graphics::GraphicsEngine;
 /// use demo_engine::scene::DemoScene;
-/// 
+///
 /// let scene = Box::new(DemoScene::new());
 /// let engine = GraphicsEngine::new(window, scene).await?;
 /// engine.render(dt, &input_state)?;
@@ -29,27 +32,32 @@ pub struct GraphicsEngine {
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
     scene: Box<dyn Scene>,
+    config: RenderingConfig,
 }
 
 impl GraphicsEngine {
     /// Creates a new graphics engine with the specified window and scene.
-    /// 
+    ///
     /// Initializes WGPU resources including device, queue, surface, and configures
     /// the rendering pipeline for the given scene.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `window` - The window to render to
     /// * `scene` - The scene to be rendered
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns a configured GraphicsEngine ready for rendering.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns `EngineError` if WGPU initialization fails.
-    pub async fn new(window: Window, mut scene: Box<dyn Scene>) -> EngineResult<Self> {
+    pub async fn new(
+        window: Window,
+        mut scene: Box<dyn Scene>,
+        config: &RenderingConfig,
+    ) -> EngineResult<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -91,18 +99,22 @@ impl GraphicsEngine {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
-        let config = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: winit_window.inner_size().width,
             height: winit_window.inner_size().height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: if config.vsync {
+                wgpu::PresentMode::Fifo
+            } else {
+                wgpu::PresentMode::Immediate
+            },
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
 
-        surface.configure(&device, &config);
+        surface.configure(&device, &surface_config);
 
         let device = Arc::new(device);
 
@@ -119,15 +131,16 @@ impl GraphicsEngine {
             device,
             queue,
             surface,
-            surface_config: config,
+            surface_config,
             scene,
+            config: config.clone(),
         })
     }
 
     /// Resizes the rendering surface to the specified dimensions.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `width` - New width in pixels (ignored if 0)
     /// * `height` - New height in pixels (ignored if 0)
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -140,17 +153,17 @@ impl GraphicsEngine {
     }
 
     /// Renders a single frame.
-    /// 
+    ///
     /// Updates the scene with delta time and input, then renders all scene objects
     /// to the surface. Also updates camera uniforms and handles GPU synchronization.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `dt` - Delta time since last frame in seconds
     /// * `input` - Current input state for scene updates
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Returns `Ok(())` on successful render, or `EngineError` if rendering fails.
     pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {
         // シーン更新
@@ -185,10 +198,10 @@ impl GraphicsEngine {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.5,
-                            g: 0.2,
-                            b: 0.2,
-                            a: 1.0,
+                            r: self.config.clear_color[0] as f64,
+                            g: self.config.clear_color[1] as f64,
+                            b: self.config.clear_color[2] as f64,
+                            a: self.config.clear_color[3] as f64,
                         }),
                         store: wgpu::StoreOp::Store,
                     },

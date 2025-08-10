@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    core::config::{AppConfig, MovementConfig},
     input::InputState,
     resources::{
         manager::{ResourceId, ResourceManager},
@@ -18,17 +19,19 @@ pub struct DemoScene {
     camera_buffer: Option<Arc<wgpu::Buffer>>,
     camera_bind_group: Option<Arc<wgpu::BindGroup>>,
     initialized: bool,
+    config: MovementConfig,
 }
 
 impl DemoScene {
-    pub fn new() -> Self {
+    pub fn new(aspect: f32, config: &AppConfig) -> Self {
         Self {
             render_objects: Vec::new(),
-            camera: Camera::new(800.0 / 600.0),
+            camera: Camera::new(aspect, &config.camera),
             camera_uniform: CameraUniform::new(),
             camera_buffer: None,
             camera_bind_group: None,
             initialized: false,
+            config: config.movement.clone(),
         }
     }
 }
@@ -135,8 +138,8 @@ impl Scene for DemoScene {
 
         println!("DemoScene::update called with dt={}", dt);
 
-        let move_speed = 5.0 * dt; // 1秒間に5単位移動
-        let rotation_speed = 1.0 * dt; // 1秒間に1ラジアン回転
+        let move_speed = self.config.move_speed * dt;
+        let rotation_speed = self.config.rotation_speed * dt;
 
         // WASD でカメラ移動
         if input.is_key_pressed(KeyCode::KeyW) {

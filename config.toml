@@ -1,0 +1,20 @@
+[window]
+width = 800
+height = 600
+title = "Demo Engine"
+resizable = true
+
+[camera]
+fov_degrees = 45.0
+znear = 0.1
+zfar = 100.0
+
+[movement]
+move_speed = 5.0
+rotation_speed = 1.0
+mouse_sensitivity = 0.001
+
+[rendering]
+clear_color = [0.5, 0.2, 0.2, 1.0]
+vsync = true
+msaa_samples = 1

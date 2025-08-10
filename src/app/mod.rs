@@ -3,6 +3,7 @@ use std::sync::Arc;
 use winit::{application::ApplicationHandler, window::WindowAttributes};
 
 use crate::{
+    core::config::AppConfig,
     graphics::engine::GraphicsEngine,
     input::InputState,
     scene::{SceneId, demo_scene::DemoScene, manager::SceneManager},
@@ -15,6 +16,7 @@ pub struct App {
     input_state: InputState,
     last_frame_time: std::time::Instant,
     scene_manager: SceneManager,
+    config: AppConfig,
 }
 
 impl App {
@@ -25,6 +27,7 @@ impl App {
             input_state: InputState::new(),
             last_frame_time: std::time::Instant::now(),
             scene_manager: SceneManager::new(),
+            config: AppConfig::load_or_default("config.toml"),
         }
     }
 }
@@ -35,8 +38,12 @@ impl ApplicationHandler for App {
             event_loop
                 .create_window(
                     WindowAttributes::default()
-                        .with_title("Demo Engine")
-                        .with_inner_size(winit::dpi::PhysicalSize::new(800.0, 600.0)),
+                        .with_title(self.config.window.title.clone())
+                        .with_inner_size(winit::dpi::PhysicalSize::new(
+                            self.config.window.width,
+                            self.config.window.height,
+                        ))
+                        .with_resizable(self.config.window.resizable),
                 )
                 .map_err(|e| {
                     eprintln!("Window creation error: {}", e);
@@ -45,7 +52,10 @@ impl ApplicationHandler for App {
         );
 
         let scene_id = SceneId::new("Demo_Scene");
-        let demo_scene = Box::new(DemoScene::new());
+        let demo_scene = Box::new(DemoScene::new(
+            self.config.window.width as f32 / self.config.window.height as f32,
+            &self.config,
+        ));
 
         self.scene_manager.register_scene(scene_id, demo_scene);
         if let Err(e) = self.scene_manager.set_current_scene(scene_id) {

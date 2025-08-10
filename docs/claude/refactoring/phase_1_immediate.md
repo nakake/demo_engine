@@ -283,10 +283,20 @@ impl EngineMetrics {
 4. **プロフェッショナル性**: Rustdoc準拠の高品質ドキュメント
 
 ### Phase 2 への引き継ぎ事項
-- constants.rs 作成（マジックナンバー解消）
-- ログシステム構築（println! 置換）
-- 基本メトリクス実装
+
+#### 🔴 最優先（Phase 1延期項目）
+- **constants.rs作成** - マジックナンバー解消（src/core/constants.rs）
+  - 対象: ウィンドウサイズ、カメラパラメータ、移動速度、クリアカラー
+- **ログシステム構築** - println! → log crate 置換
+  - 対象: src/scene/demo_scene.rs, src/input/mod.rs, src/app/mod.rs, src/graphics/engine.rs
+- **基本メトリクス実装** - パフォーマンス監視（src/core/metrics.rs）
+  - FPS、フレーム時間、オブジェクト数、パフォーマンス警告
+
+#### 🟡 アーキテクチャ改善
+- GraphicsEngine責任分離
 - 統合テスト追加
+- 設定外部化（TOML）
+- Scene管理強化
 
 ## 期待される改善効果
 

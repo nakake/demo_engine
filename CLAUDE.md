@@ -97,10 +97,15 @@ assets/shaders/basic/
 
 ## ⚠️ Phase 2 計画事項
 
-- **GraphicsEngine God Object** - 責任分離
-- **設定のハードコーディング** - constants.rs + 外部化
-- **ログシステム** - println! 置換
-- **基本メトリクス** - パフォーマンス監視
+### 🔴 Phase 1延期項目（最優先）
+- **統合設定システム** - constants.rs + config.toml統合（マジックナンバー解消 + 外部設定）
+- **ログシステム導入** - println! → log::debug! 置換
+- **基本メトリクス実装** - FPS/フレーム時間監視
+
+### 🟡 アーキテクチャ改善
+- **GraphicsEngine分割** - Renderer + SurfaceManager分離
+- **Scene管理強化** - 複数シーン + トランジション
+- **入力システム改善** - バインディング設定対応
 
 ## 🎯 次のアクション
 

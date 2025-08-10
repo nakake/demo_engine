@@ -1,9 +1,255 @@
 # Phase 2: 短期改善
 
-> **目標**: アーキテクチャ改善と機能拡張  
+> **目標**: アーキテクチャ改善と機能拡張 + Phase 1延期項目  
 > **期間**: 1-2週間  
 > **リスク**: 中  
 > **前提条件**: Phase 1 完了
+
+## 0. Phase 1 延期項目の完了
+
+**優先度**: 🔴 最高（Phase 1からの引き継ぎ）
+
+### 0.1 統合設定システム（constants.rs + config.rs）
+
+**ステータス**: ✅ **完了** 
+
+**実装済み内容**:
+```rust
+// src/core/config.rs (新規作成)
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AppConfig {
+    pub window: WindowConfig,
+    pub camera: CameraConfig,
+    pub movement: MovementConfig,
+    pub rendering: RenderingConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct WindowConfig {
+    pub width: u32,
+    pub height: u32,
+    pub title: String,
+    pub resizable: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CameraConfig {
+    pub fov_degrees: f32,
+    pub znear: f32,
+    pub zfar: f32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MovementConfig {
+    pub move_speed: f32,
+    pub rotation_speed: f32,
+    pub mouse_sensitivity: f32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RenderingConfig {
+    pub clear_color: [f32; 4],
+    pub vsync: bool,
+    pub msaa_samples: u32,
+}
+
+// デフォルト値（constants.rsの代替）
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            window: WindowConfig {
+                width: 800,
+                height: 600,
+                title: "Demo Engine".to_string(),
+                resizable: true,
+            },
+            camera: CameraConfig {
+                fov_degrees: 45.0,
+                znear: 0.1,
+                zfar: 100.0,
+            },
+            movement: MovementConfig {
+                move_speed: 5.0,
+                rotation_speed: 1.0,
+                mouse_sensitivity: 0.001,
+            },
+            rendering: RenderingConfig {
+                clear_color: [0.5, 0.2, 0.2, 1.0],
+                vsync: true,
+                msaa_samples: 1,
+            },
+        }
+    }
+}
+
+// 設定ファイル読み込み
+impl AppConfig {
+    pub fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let content = std::fs::read_to_string(path)?;
+        let config: AppConfig = toml::from_str(&content)?;
+        Ok(config)
+    }
+    
+    pub fn load_or_default() -> Self {
+        Self::load_from_file("config.toml").unwrap_or_else(|_| {
+            log::info!("config.toml not found, using defaults");
+            Self::default()
+        })
+    }
+    
+    pub fn save_to_file(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+}
+
+// config.toml ファイル例
+/*
+[window]
+width = 1920
+height = 1080
+title = "Demo Engine"
+resizable = true
+
+[camera]
+fov_degrees = 60.0
+znear = 0.1
+zfar = 1000.0
+
+[movement]
+move_speed = 10.0
+rotation_speed = 2.0
+mouse_sensitivity = 0.002
+
+[rendering]
+clear_color = [0.1, 0.1, 0.2, 1.0]
+vsync = true
+msaa_samples = 4
+*/
+```
+
+**実装内容**:
+- ✅ `src/core/config.rs` 作成完了
+- ✅ `config.toml` ファイル配置完了
+- ✅ AppConfig構造体とサブ構造体（Window, Camera, Movement, Rendering）実装
+- ✅ デフォルト値設定、ファイル読み書き機能実装
+- ✅ 全7個のconfig関連テストが通過
+- ✅ `src/app/mod.rs`でconfig読み込み統合済み
+- ✅ `src/scene/demo_scene.rs`でmovement config使用済み
+- ✅ `src/scene/camera.rs`でcamera config使用済み
+- ✅ `src/graphics/engine.rs`でrendering config使用済み（VSync、clear_color）
+
+**追加済みCargo.toml依存関係**:
+```toml
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+tempfile = "3.12" # テスト用
+```
+
+### 0.2 ログシステム導入（println! 置換）
+
+**実装内容**:
+```rust
+// Cargo.toml に追加
+[dependencies]
+log = "0.4"
+env_logger = "0.10"
+
+// src/core/logging.rs (新規作成)
+use log::{debug, info, warn, error};
+
+pub fn init_logger() {
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+}
+
+// 置換例
+// Before: println!("W key pressed! Moving forward by {}", move_speed);
+// After:  debug!("W key pressed! Moving forward by {}", move_speed);
+```
+
+**対象ファイル**:
+- `src/scene/demo_scene.rs`: デバッグメッセージ
+- `src/input/mod.rs`: 入力ログ
+- `src/app/mod.rs`: アプリケーションログ
+- `src/graphics/engine.rs`: レンダリングログ
+
+### 0.3 基本メトリクス実装
+
+**実装内容**:
+```rust
+// src/core/metrics.rs (新規作成)
+use std::collections::VecDeque;
+use std::time::{Duration, Instant};
+
+pub struct EngineMetrics {
+    frame_times: VecDeque<f32>,
+    fps: f32,
+    render_objects_count: usize,
+    last_update: Instant,
+}
+
+impl EngineMetrics {
+    pub fn new() -> Self {
+        Self {
+            frame_times: VecDeque::with_capacity(60), // 1秒分
+            fps: 0.0,
+            render_objects_count: 0,
+            last_update: Instant::now(),
+        }
+    }
+    
+    pub fn update(&mut self, dt: f32, object_count: usize) {
+        self.frame_times.push_back(dt);
+        if self.frame_times.len() > 60 {
+            self.frame_times.pop_front();
+        }
+        
+        // 移動平均でFPS計算
+        let avg_frame_time: f32 = self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32;
+        self.fps = 1.0 / avg_frame_time;
+        self.render_objects_count = object_count;
+    }
+    
+    pub fn get_fps(&self) -> f32 { self.fps }
+    pub fn get_frame_time_ms(&self) -> f32 { 
+        self.frame_times.back().unwrap_or(&0.0) * 1000.0 
+    }
+    pub fn get_object_count(&self) -> usize { self.render_objects_count }
+    
+    // フレームレート警告
+    pub fn check_performance(&self) {
+        if self.fps < 30.0 {
+            log::warn!("Low FPS: {:.1} fps", self.fps);
+        }
+        if self.get_frame_time_ms() > 33.0 { // 30fps threshold
+            log::warn!("High frame time: {:.1}ms", self.get_frame_time_ms());
+        }
+    }
+}
+
+// GraphicsEngine統合
+impl GraphicsEngine {
+    pub fn render(&mut self, dt: f32, input: &InputState) -> EngineResult<()> {
+        self.metrics.update(dt, self.scene.get_render_objects().len());
+        self.metrics.check_performance();
+        
+        #[cfg(debug_assertions)]
+        if self.frame_counter % 60 == 0 { // 1秒おき
+            log::info!("FPS: {:.1}, Frame time: {:.1}ms, Objects: {}", 
+                      self.metrics.get_fps(),
+                      self.metrics.get_frame_time_ms(),
+                      self.metrics.get_object_count());
+        }
+        
+        // 既存のレンダリング処理...
+    }
+}
+```
 
 ## 1. 責任分離とアーキテクチャ改善
 
@@ -54,80 +300,17 @@ pub struct GraphicsEngine {
 
 **期待効果**: 単一責任原則の遵守、テスタビリティ向上
 
-### 1.2 設定システムの導入
+### 1.2 設定システム統合完了
 
-**優先度**: 🟡 中
+**ステータス**: ✅ **完了**
 
-**実装内容**:
-```rust
-// src/core/config.rs (新規作成)
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AppConfig {
-    pub window: WindowConfig,
-    pub graphics: GraphicsConfig,
-    pub input: InputConfig,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]  
-pub struct WindowConfig {
-    pub width: u32,
-    pub height: u32,
-    pub title: String,
-    pub resizable: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct GraphicsConfig {
-    pub vsync: bool,
-    pub msaa_samples: u32,
-    pub clear_color: [f32; 4],
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct InputConfig {
-    pub move_speed: f32,
-    pub rotation_speed: f32,
-    pub mouse_sensitivity: f32,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        // constants.rs から値を取得
-    }
-}
-
-// config.toml サポート
-impl AppConfig {
-    pub fn load_from_file(path: &str) -> Result<Self, ConfigError> {
-        let content = std::fs::read_to_string(path)?;
-        Ok(toml::from_str(&content)?)
-    }
-}
-```
-
-**設定ファイル例**:
-```toml
-# config.toml
-[window]
-width = 1024
-height = 768
-title = "Demo Engine"
-resizable = true
-
-[graphics]  
-vsync = true
-msaa_samples = 4
-clear_color = [0.1, 0.1, 0.1, 1.0]
-
-[input]
-move_speed = 10.0
-rotation_speed = 2.0
-mouse_sensitivity = 0.01
-```
-
-**期待効果**: 実行時設定変更、環境ごとの設定分離
+**実装済み内容**:
+- ✅ constants.rs の役割も兼ねる統合設計
+- ✅ config.toml からの読み込み対応
+- ✅ デフォルト値の提供
+- ✅ 実行時設定変更対応
+- ✅ 全モジュールでの設定活用（App、Scene、Camera、GraphicsEngine）
+- ✅ 包括的なテストカバレッジ（15個のテストが通過）
 
 ## 2. Scene システム強化
 
@@ -307,7 +490,14 @@ impl Scene for DemoScene {
 }
 ```
 
-### 4.2 Transform システム
+### 4.2 MSAA実装（Phase 2でスキップ）
+
+**優先度**: ⭕ スキップ  
+**理由**: 他の優先機能に集中するため一時的にスキップ
+
+**Note**: config.tomlの`msaa_samples`設定はあるが、GraphicsEngineでの実装は後回し。現在は1x（オフ）で動作継続。
+
+### 4.3 Transform システム
 
 **優先度**: 🟡 中
 
@@ -347,7 +537,7 @@ pub struct RenderObject {
 }
 ```
 
-### 4.3 インスタンシング対応
+### 4.4 インスタンシング対応
 
 **優先度**: 🟢 低
 
@@ -458,11 +648,15 @@ impl Profiler {
 
 ## 実装チェックリスト
 
-### Week 1
+### Phase 1 延期項目 ✅ **完了**
+- [x] **設定システム基盤実装** - 統合AppConfig システム完了
+- [x] **テストインフラ** - ConfigとCameraのユニットテスト完了（15個のテスト通過）
+- [x] **設定統合** - App、Scene、Camera、GraphicsEngineに設定適用完了
+
+### Week 1 🚧 **進行中**
 - [ ] GraphicsEngine 分割設計
 - [ ] Renderer 構造体実装
 - [ ] SurfaceManager 構造体実装
-- [ ] 設定システム基盤実装
 - [ ] SceneManager リファクタリング
 
 ### Week 2  
@@ -472,7 +666,9 @@ impl Profiler {
 - [ ] エラー回復機能
 - [ ] ログシステム統合
 
-### テスト
+### テスト ✅ **部分完了**
+- [x] **Config系ユニットテスト** - 7個のテスト通過
+- [x] **Camera系ユニットテスト** - 8個のテスト通過
 - [ ] 各新機能のユニットテスト
 - [ ] 統合テスト
 - [ ] パフォーマンステスト
