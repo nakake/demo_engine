@@ -22,6 +22,27 @@ impl ResourceId {
     }
 }
 
+/// Central manager for GPU resources with shared ownership and caching.
+/// 
+/// Manages creation, storage, and retrieval of WGPU resources including
+/// buffers, pipelines, shaders, meshes, and bind groups. Uses Arc for
+/// safe sharing between components and HashMap for efficient lookups.
+/// 
+/// # Resource Types
+/// 
+/// - **Buffers**: Uniform buffers, vertex buffers, index buffers  
+/// - **Pipelines**: Render pipelines with shader stages
+/// - **Shaders**: Compiled WGSL shader modules
+/// - **Meshes**: Vertex and index data for geometry
+/// - **Bind Groups**: Resource binding sets for shaders
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// let manager = ResourceManager::new(device, queue, surface_format);
+/// let shader_id = ResourceId::new("basic_shader");
+/// manager.create_shader(shader_id, shader_source, Some("Basic Shader"))?;
+/// ```
 pub struct ResourceManager {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
@@ -225,5 +246,41 @@ impl ResourceManager {
 
     pub fn get_mesh(&self, id: &ResourceId) -> Option<Arc<Mesh>> {
         self.meshes.get(id).cloned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resource_id_consistency() {
+        let id1 = ResourceId::new("test_shader");
+        let id2 = ResourceId::new("test_shader");
+        assert_eq!(id1, id2, "同じ名前からは同じIDが生成されるべき");
+    }
+
+    #[test]
+    fn test_resource_id_uniqueness() {
+        let id1 = ResourceId::new("shader1");
+        let id2 = ResourceId::new("shader2");
+        assert_ne!(id1, id2, "異なる名前からは異なるIDが生成されるべき");
+    }
+
+    #[test]
+    fn test_resource_id_empty_string() {
+        let id1 = ResourceId::new("");
+        let id2 = ResourceId::new("");
+        assert_eq!(id1, id2, "空文字列でも一貫したIDが生成されるべき");
+    }
+
+    #[test]
+    fn test_resource_id_unicode() {
+        let id1 = ResourceId::new("日本語シェーダー");
+        let id2 = ResourceId::new("日本語シェーダー");
+        let id3 = ResourceId::new("English_Shader");
+        
+        assert_eq!(id1, id2, "Unicode文字列でも一貫性を保つべき");
+        assert_ne!(id1, id3, "異なるUnicode文字列は異なるIDになるべき");
     }
 }

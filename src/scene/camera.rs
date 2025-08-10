@@ -94,3 +94,112 @@ impl Camera {
         self.target = self.eye + new_direction;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_camera_initialization() {
+        let camera = Camera::new(16.0 / 9.0);
+        
+        assert_eq!(camera.eye, glam::Vec3::new(0.0, 0.0, 3.0));
+        assert_eq!(camera.target, glam::Vec3::ZERO);
+        assert_eq!(camera.up, glam::Vec3::Y);
+        assert_eq!(camera.aspect, 16.0 / 9.0);
+    }
+
+    #[test]
+    fn test_camera_move_forward() {
+        let mut camera = Camera::new(1.0);
+        let initial_eye = camera.eye;
+        let initial_target = camera.target;
+        
+        camera.move_forward(1.0);
+        
+        // 前方向に移動したので位置が変わっているはず
+        assert_ne!(camera.eye, initial_eye);
+        assert_ne!(camera.target, initial_target);
+        
+        // eyeとtargetの相対位置（方向）は保持されるべき
+        let initial_direction = initial_target - initial_eye;
+        let new_direction = camera.target - camera.eye;
+        
+        // 方向ベクトルの長さは同じであるべき
+        assert!((initial_direction.length() - new_direction.length()).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_camera_move_right() {
+        let mut camera = Camera::new(1.0);
+        let initial_eye = camera.eye;
+        
+        camera.move_right(1.0);
+        
+        assert_ne!(camera.eye, initial_eye);
+    }
+
+    #[test]
+    fn test_camera_move_up() {
+        let mut camera = Camera::new(1.0);
+        let initial_eye = camera.eye;
+        
+        camera.move_up(1.0);
+        
+        // Y方向に移動したはず
+        assert!(camera.eye.y > initial_eye.y);
+    }
+
+    #[test]
+    fn test_camera_rotate_horizontal() {
+        let mut camera = Camera::new(1.0);
+        let initial_target = camera.target;
+        
+        camera.rotate_horizontal(std::f32::consts::FRAC_PI_2); // 90度回転
+        
+        // targetが変わったはず
+        assert_ne!(camera.target, initial_target);
+        
+        // eyeは変わらないはず
+        assert_eq!(camera.eye, glam::Vec3::new(0.0, 0.0, 3.0));
+    }
+
+    #[test]
+    fn test_view_projection_matrix() {
+        let camera = Camera::new(16.0 / 9.0);
+        let matrix = camera.build_view_proj_matrix();
+        
+        // 行列が有効な値を持っているかチェック
+        for i in 0..4 {
+            for j in 0..4 {
+                assert!(!matrix.col(i)[j].is_nan(), "行列にNaNが含まれている");
+                assert!(!matrix.col(i)[j].is_infinite(), "行列に無限大が含まれている");
+            }
+        }
+        
+        // 行列式が0でないことを確認（逆行列が存在する）
+        let det = matrix.determinant();
+        assert!(det.abs() > f32::EPSILON, "行列式が0に近すぎる: {}", det);
+    }
+
+    #[test]
+    fn test_camera_aspect_ratio() {
+        let wide_camera = Camera::new(21.0 / 9.0); // ウルトラワイド
+        let square_camera = Camera::new(1.0); // 正方形
+        let tall_camera = Camera::new(9.0 / 16.0); // 縦長
+        
+        assert_eq!(wide_camera.aspect, 21.0 / 9.0);
+        assert_eq!(square_camera.aspect, 1.0);
+        assert_eq!(tall_camera.aspect, 9.0 / 16.0);
+    }
+
+    #[test]
+    fn test_camera_fov_range() {
+        let camera = Camera::new(1.0);
+        
+        // 視野角が妥当な範囲内にあることを確認
+        assert!(camera.fovy > 0.0 && camera.fovy < std::f32::consts::PI);
+        assert!(camera.znear > 0.0);
+        assert!(camera.zfar > camera.znear);
+    }
+}
