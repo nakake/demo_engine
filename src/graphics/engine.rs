@@ -7,6 +7,21 @@ use crate::{
     window::Window,
 };
 
+/// WGPU-based 3D graphics rendering engine.
+/// 
+/// Manages GPU resources, handles scene rendering, and coordinates between
+/// the graphics hardware and scene objects.
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// use demo_engine::graphics::GraphicsEngine;
+/// use demo_engine::scene::DemoScene;
+/// 
+/// let scene = Box::new(DemoScene::new());
+/// let engine = GraphicsEngine::new(window, scene).await?;
+/// engine.render(dt, &input_state)?;
+/// ```
 pub struct GraphicsEngine {
     resource_manager: ResourceManager,
     device: Arc<wgpu::Device>,
@@ -17,6 +32,23 @@ pub struct GraphicsEngine {
 }
 
 impl GraphicsEngine {
+    /// Creates a new graphics engine with the specified window and scene.
+    /// 
+    /// Initializes WGPU resources including device, queue, surface, and configures
+    /// the rendering pipeline for the given scene.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `window` - The window to render to
+    /// * `scene` - The scene to be rendered
+    /// 
+    /// # Returns
+    /// 
+    /// Returns a configured GraphicsEngine ready for rendering.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns `EngineError` if WGPU initialization fails.
     pub async fn new(window: Window, mut scene: Box<dyn Scene>) -> EngineResult<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -92,6 +124,12 @@ impl GraphicsEngine {
         })
     }
 
+    /// Resizes the rendering surface to the specified dimensions.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `width` - New width in pixels (ignored if 0)
+    /// * `height` - New height in pixels (ignored if 0)
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
@@ -101,6 +139,19 @@ impl GraphicsEngine {
         self.surface.configure(&self.device, &self.surface_config);
     }
 
+    /// Renders a single frame.
+    /// 
+    /// Updates the scene with delta time and input, then renders all scene objects
+    /// to the surface. Also updates camera uniforms and handles GPU synchronization.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `dt` - Delta time since last frame in seconds
+    /// * `input` - Current input state for scene updates
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Ok(())` on successful render, or `EngineError` if rendering fails.
     pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {
         // シーン更新
         println!("GraphicsEngine::render called with dt={}", dt);

@@ -1,19 +1,27 @@
-///
-/// ### 引数
-/// - eye - カメラの位置
-/// - target - カメラが向いている点
-/// - up - カメラの上方向ベクトル
-/// - aspect - アスペクト比 (window_width / window_hight)
-/// - fovy - 視野角
-/// - znear - 描画する最小距離
-///   - これより近いオブジェクトは描画されない
-///   - 一般的な値: 0.1 〜 1.0
-///   - 注意: 0にすると計算エラーが発生
-/// - zfar - 描画する最大距離
-///   - これより遠いオブジェクトは描画されない
-///   - 一般的な値: 100.0 〜 10000.0
-///   - 効果: パフォーマンス最適化（遠すぎるものを描画しない）
-///
+/// 3D camera for view and projection matrix calculations.
+/// 
+/// Provides first-person camera controls with position, target-based rotation,
+/// and perspective projection. Supports movement and rotation operations
+/// commonly used in 3D applications.
+/// 
+/// # Fields
+/// 
+/// - `eye` - Camera position in world space
+/// - `target` - Point the camera is looking at
+/// - `up` - Camera's up direction vector (usually Y-axis)
+/// - `aspect` - Aspect ratio (window_width / window_height)
+/// - `fovy` - Field of view angle in radians
+/// - `znear` - Near clipping plane distance (0.1 - 1.0 typical)
+/// - `zfar` - Far clipping plane distance (100.0 - 10000.0 typical)
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// let mut camera = Camera::new(800.0 / 600.0);
+/// camera.move_forward(1.0);
+/// camera.rotate_horizontal(0.1);
+/// let view_proj_matrix = camera.build_view_proj_matrix();
+/// ```
 pub struct Camera {
     pub eye: glam::Vec3,
     pub target: glam::Vec3,
