@@ -48,7 +48,7 @@ impl Scene for DemoScene {
             include_str!("../../assets/shaders/basic/triangle.wgsl"),
             Some("Basic Shader"),
         ) {
-            eprintln!("Failed to create shader: {}", e);
+            log::error!("Failed to create shader: {}", e);
             return;
         };
 
@@ -76,7 +76,7 @@ impl Scene for DemoScene {
             resource_manager.get_surface_format(),
             &[&bind_group_layout],
         ) {
-            eprintln!("Failed to create pipeline: {}", e);
+            log::error!("Failed to create pipeline: {}", e);
             return;
         };
 
@@ -136,17 +136,17 @@ impl Scene for DemoScene {
     fn update(&mut self, dt: f32, input: &InputState) {
         use winit::keyboard::KeyCode;
 
-        println!("DemoScene::update called with dt={}", dt);
+        log::debug!("DemoScene::update called with dt={}", dt);
 
         let move_speed = self.config.move_speed * dt;
         let rotation_speed = self.config.rotation_speed * dt;
 
         // WASD でカメラ移動
         if input.is_key_pressed(KeyCode::KeyW) {
-            println!("W key pressed! Moving forward by {}", move_speed);
-            println!("Camera position before: {:?}", self.camera.eye);
+            log::debug!("W key pressed! Moving forward by {}", move_speed);
+            log::debug!("Camera position before: {:?}", self.camera.eye);
             self.camera.move_forward(move_speed);
-            println!("Camera position after: {:?}", self.camera.eye);
+            log::debug!("Camera position after: {:?}", self.camera.eye);
         }
         if input.is_key_pressed(KeyCode::KeyS) {
             self.camera.move_forward(-move_speed);
