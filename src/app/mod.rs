@@ -71,7 +71,11 @@ impl ApplicationHandler for App {
             .take_current_scene()
             .expect("No current scene set");
 
-        let engine = match pollster::block_on(GraphicsEngine::new(window.clone(), current_scene)) {
+        let engine = match pollster::block_on(GraphicsEngine::new(
+            window.clone(),
+            current_scene,
+            &self.config.rendering,
+        )) {
             Ok(engine) => engine,
             Err(e) => {
                 eprintln!("Graphics engine initialization error: {}", e);
