@@ -67,7 +67,6 @@ impl ApplicationHandler for App {
 
         let window = Window::new(winit_window);
 
-        // SceneManagerから現在のシーンを取り出す（所有権を移動）
         let current_scene = self
             .scene_manager
             .take_current_scene()
@@ -88,7 +87,6 @@ impl ApplicationHandler for App {
         self.window = Some(window.clone());
         self.engine = Some(engine);
 
-        // 初期の再描画をリクエストして継続的なレンダリングを開始
         window.get_window().request_redraw();
     }
 
@@ -120,6 +118,11 @@ impl ApplicationHandler for App {
                 }
 
                 self.input_state.reset_mouse_delta();
+
+                // 継続的なレンダリングのため次フレームをリクエスト
+                if let Some(window) = &self.window {
+                    window.get_window().request_redraw();
+                }
             }
             winit::event::WindowEvent::KeyboardInput { event, .. } => {
                 log::debug!("KeyboardInput event received: {:?}", event);

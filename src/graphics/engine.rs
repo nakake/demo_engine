@@ -4,6 +4,7 @@ use crate::{
     core::{
         config::RenderingConfig,
         error::{EngineError, EngineResult},
+        metrics::EngineMetrics,
     },
     resources::manager::ResourceManager,
     scene::Scene,
@@ -33,6 +34,7 @@ pub struct GraphicsEngine {
     surface_config: wgpu::SurfaceConfiguration,
     scene: Box<dyn Scene>,
     config: RenderingConfig,
+    metrics: EngineMetrics,
 }
 
 impl GraphicsEngine {
@@ -126,6 +128,8 @@ impl GraphicsEngine {
         // シーンを初期化
         scene.initialize(&mut resource_manager);
 
+        let metrics = EngineMetrics::new();
+
         Ok(GraphicsEngine {
             resource_manager,
             device,
@@ -134,6 +138,7 @@ impl GraphicsEngine {
             surface_config,
             scene,
             config: config.clone(),
+            metrics,
         })
     }
 
@@ -166,6 +171,10 @@ impl GraphicsEngine {
     ///
     /// Returns `Ok(())` on successful render, or `EngineError` if rendering fails.
     pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {
+        self.metrics
+            .update(dt, self.scene.get_render_objects().len());
+        self.metrics.check_performance();
+
         // シーン更新
         log::debug!("GraphicsEngine::render called with dt={}", dt);
         self.scene.update(dt, input);
