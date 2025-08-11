@@ -83,6 +83,7 @@ impl AppConfig {
         Self::default()
     }
 
+    #[warn(dead_code)]
     pub fn save_to_file(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let path_buf = std::path::Path::new(path);
         if let Some(parent) = path_buf.parent() {

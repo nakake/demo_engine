@@ -3,7 +3,7 @@ use std::sync::Arc;
 use winit::{application::ApplicationHandler, window::WindowAttributes};
 
 use crate::{
-    core::config::AppConfig,
+    core::{config::AppConfig, logging::init_logger},
     graphics::engine::GraphicsEngine,
     input::InputState,
     scene::{SceneId, demo_scene::DemoScene, manager::SceneManager},
@@ -21,6 +21,8 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        init_logger();
+
         App {
             window: None,
             engine: None,
@@ -46,7 +48,7 @@ impl ApplicationHandler for App {
                         .with_resizable(self.config.window.resizable),
                 )
                 .map_err(|e| {
-                    eprintln!("Window creation error: {}", e);
+                    log::error!("Window creation error: {}", e);
                 })
                 .unwrap(),
         );
@@ -59,7 +61,7 @@ impl ApplicationHandler for App {
 
         self.scene_manager.register_scene(scene_id, demo_scene);
         if let Err(e) = self.scene_manager.set_current_scene(scene_id) {
-            eprintln!("Failed to set current scene: {}", e);
+            log::error!("Failed to set current scene: {}", e);
             return;
         }
 
@@ -78,7 +80,7 @@ impl ApplicationHandler for App {
         )) {
             Ok(engine) => engine,
             Err(e) => {
-                eprintln!("Graphics engine initialization error: {}", e);
+                log::error!("Graphics engine initialization error: {}", e);
                 return;
             }
         };
@@ -113,14 +115,14 @@ impl ApplicationHandler for App {
                     self.last_frame_time = now;
 
                     if let Err(e) = engine.render(dt, &self.input_state) {
-                        eprintln!("Rendering error: {}", e);
+                        log::error!("Rendering error: {}", e);
                     }
                 }
 
                 self.input_state.reset_mouse_delta();
             }
             winit::event::WindowEvent::KeyboardInput { event, .. } => {
-                println!("KeyboardInput event received: {:?}", event);
+                log::debug!("KeyboardInput event received: {:?}", event);
                 self.input_state.process_keybord(&event);
 
                 if self

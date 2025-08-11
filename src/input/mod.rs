@@ -26,15 +26,15 @@ impl InputState {
         if let PhysicalKey::Code(keycode) = event.physical_key {
             match event.state {
                 ElementState::Pressed => {
-                    println!("Key pressed: {:?}", keycode);
+                    log::debug!("Key pressed: {:?}", keycode);
                     self.keys_pressed.insert(keycode);
                 }
                 ElementState::Released => {
-                    println!("Key released: {:?}", keycode);
+                    log::debug!("Key released: {:?}", keycode);
                     self.keys_pressed.remove(&keycode);
                 }
             }
-            println!("Currently pressed keys: {:?}", self.keys_pressed);
+            log::debug!("Currently pressed keys: {:?}", self.keys_pressed);
         }
     }
 

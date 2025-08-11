@@ -167,7 +167,7 @@ impl GraphicsEngine {
     /// Returns `Ok(())` on successful render, or `EngineError` if rendering fails.
     pub fn render(&mut self, dt: f32, input: &crate::input::InputState) -> EngineResult<()> {
         // シーン更新
-        println!("GraphicsEngine::render called with dt={}", dt);
+        log::debug!("GraphicsEngine::render called with dt={}", dt);
         self.scene.update(dt, input);
         let frame = self.surface.get_current_texture().map_err(|e| {
             EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e))
