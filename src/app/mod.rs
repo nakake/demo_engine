@@ -16,7 +16,7 @@ pub struct App {
     input_state: InputState,
     last_frame_time: std::time::Instant,
     scene_manager: SceneManager,
-    config: AppConfig,
+    config: Arc<AppConfig>,
 }
 
 impl App {
@@ -29,7 +29,7 @@ impl App {
             input_state: InputState::new(),
             last_frame_time: std::time::Instant::now(),
             scene_manager: SceneManager::new(),
-            config: AppConfig::load_or_default("config.toml"),
+            config: Arc::new(AppConfig::load_or_default("config.toml")),
         }
     }
 }
@@ -56,7 +56,7 @@ impl ApplicationHandler for App {
         let scene_id = SceneId::new("Demo_Scene");
         let demo_scene = Box::new(DemoScene::new(
             self.config.window.width as f32 / self.config.window.height as f32,
-            &self.config,
+            self.config.clone(),
         ));
 
         self.scene_manager.register_scene(scene_id, demo_scene);

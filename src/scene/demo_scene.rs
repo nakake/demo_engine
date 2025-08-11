@@ -23,7 +23,7 @@ pub struct DemoScene {
 }
 
 impl DemoScene {
-    pub fn new(aspect: f32, config: &AppConfig) -> Self {
+    pub fn new(aspect: f32, config: Arc<AppConfig>) -> Self {
         Self {
             render_objects: Vec::new(),
             camera: Camera::new(aspect, &config.camera),
