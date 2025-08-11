@@ -705,6 +705,214 @@ pub struct Collider {
 - [ ] パフォーマンス最適化
 - [ ] 物理シミュレーション統合
 
+## Config管理システム高度化
+
+### Phase 3 Config拡張機能
+
+**優先度**: 🟡 中 (Phase 2A完了後に検討)
+
+#### 1. 動的設定変更 - 実行時リロード
+
+```rust
+// src/core/config_service.rs (新規作成)
+use std::sync::{Arc, RwLock};
+use notify::{Watcher, RecursiveMode, Event, EventKind};
+use std::sync::mpsc;
+
+pub struct ConfigService {
+    config: Arc<RwLock<AppConfig>>,
+    file_watcher: Option<notify::RecommendedWatcher>,
+    config_path: String,
+    change_notifier: mpsc::Sender<ConfigChange>,
+}
+
+#[derive(Debug)]
+pub enum ConfigChange {
+    WindowResize { width: u32, height: u32 },
+    CameraFov { fov: f32 },
+    MovementSpeed { speed: f32 },
+    RenderingSettings { clear_color: [f32; 4], vsync: bool },
+}
+
+impl ConfigService {
+    pub fn new(config_path: &str) -> Result<Self, ConfigError> {
+        let config = Arc::new(RwLock::new(AppConfig::load_or_default(config_path)));
+        let (tx, rx) = mpsc::channel();
+        
+        // ファイル監視設定
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            if let Ok(event) = res {
+                if matches!(event.kind, EventKind::Modify(_)) {
+                    // 設定ファイル変更検出
+                    let _ = tx.send(ConfigChange::reload());
+                }
+            }
+        })?;
+        
+        watcher.watch(Path::new(config_path), RecursiveMode::NonRecursive)?;
+        
+        Ok(Self {
+            config,
+            file_watcher: Some(watcher),
+            config_path: config_path.to_string(),
+            change_notifier: tx,
+        })
+    }
+    
+    pub fn get_config(&self) -> Arc<RwLock<AppConfig>> {
+        self.config.clone()
+    }
+    
+    pub fn reload_from_file(&self) -> Result<(), ConfigError> {
+        let new_config = AppConfig::load_from_file(&self.config_path)?;
+        let mut config_guard = self.config.write().unwrap();
+        *config_guard = new_config;
+        Ok(())
+    }
+    
+    pub fn update_runtime<T>(&self, updater: impl FnOnce(&mut AppConfig) -> T) -> T {
+        let mut config_guard = self.config.write().unwrap();
+        updater(&mut *config_guard)
+    }
+}
+```
+
+#### 2. 設定監視 - ファイル変更検出
+
+```rust
+// Cargo.tomlに追加
+[dependencies]
+notify = "6.0"
+
+// src/core/config_watcher.rs (新規作成)
+pub struct ConfigWatcher {
+    watcher: notify::RecommendedWatcher,
+    change_receiver: mpsc::Receiver<ConfigChange>,
+}
+
+impl ConfigWatcher {
+    pub fn watch_changes(&mut self) -> Vec<ConfigChange> {
+        let mut changes = Vec::new();
+        while let Ok(change) = self.change_receiver.try_recv() {
+            changes.push(change);
+        }
+        changes
+    }
+}
+
+// App統合例
+impl App {
+    pub fn process_config_changes(&mut self) {
+        if let Some(config_service) = &mut self.config_service {
+            let changes = config_service.get_changes();
+            for change in changes {
+                match change {
+                    ConfigChange::WindowResize { width, height } => {
+                        if let Some(engine) = &mut self.engine {
+                            engine.resize(width, height);
+                        }
+                    }
+                    ConfigChange::CameraFov { fov } => {
+                        // カメラFOVをリアルタイム更新
+                    }
+                    // ... other changes
+                }
+            }
+        }
+    }
+}
+```
+
+#### 3. 設定バリデーション - 範囲チェック強化
+
+```rust
+// src/core/config_validation.rs (新規作成)
+pub trait Validate {
+    type Error;
+    fn validate(&self) -> Result<(), Self::Error>;
+}
+
+#[derive(Debug)]
+pub enum ConfigValidationError {
+    InvalidWindowSize { width: u32, height: u32 },
+    InvalidCameraFov { fov: f32 },
+    InvalidMovementSpeed { speed: f32 },
+    InvalidColor { component: String, value: f32 },
+}
+
+impl Validate for WindowConfig {
+    type Error = ConfigValidationError;
+    
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.width < 100 || self.width > 7680 {
+            return Err(ConfigValidationError::InvalidWindowSize {
+                width: self.width,
+                height: self.height,
+            });
+        }
+        if self.height < 100 || self.height > 4320 {
+            return Err(ConfigValidationError::InvalidWindowSize {
+                width: self.width,
+                height: self.height,
+            });
+        }
+        Ok(())
+    }
+}
+
+impl Validate for CameraConfig {
+    type Error = ConfigValidationError;
+    
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.fov_degrees < 10.0 || self.fov_degrees > 170.0 {
+            return Err(ConfigValidationError::InvalidCameraFov {
+                fov: self.fov_degrees,
+            });
+        }
+        if self.znear <= 0.0 || self.znear >= self.zfar {
+            return Err(ConfigValidationError::InvalidCameraFov {
+                fov: self.fov_degrees,
+            });
+        }
+        Ok(())
+    }
+}
+
+impl Validate for AppConfig {
+    type Error = ConfigValidationError;
+    
+    fn validate(&self) -> Result<(), Self::Error> {
+        self.window.validate()?;
+        self.camera.validate()?;
+        self.movement.validate()?;
+        self.rendering.validate()?;
+        Ok(())
+    }
+}
+
+// 強化されたload_from_file
+impl AppConfig {
+    pub fn load_validated(path: &str) -> Result<Self, ConfigError> {
+        let config = Self::load_from_file(path)?;
+        config.validate()
+            .map_err(|e| ConfigError::Validation(e))?;
+        Ok(config)
+    }
+}
+```
+
+### 実装優先順位
+
+**Phase 3で検討する機能:**
+1. **動的設定変更** - 開発効率向上、デバッグ支援
+2. **設定監視** - ホットリロード機能、ライブ調整
+3. **設定バリデーション** - 堅牢性向上、エラー防止
+
+**実装タイミング:**
+- Phase 2A (Arc共有) 完了後
+- より高度な機能が必要になった時点
+- エディター機能実装時に合わせて
+
 ## 期待される最終成果
 
 1. **本格的な3Dエンジン**: ECS、PBR、マルチライト対応
@@ -712,5 +920,6 @@ pub struct Collider {
 3. **高パフォーマンス**: マルチスレッド、カリング、LOD
 4. **拡張性**: モジュラー設計、プラグインシステム
 5. **開発効率**: ビジュアルエディター、リアルタイムデバッグ
+6. **動的設定管理**: リアルタイム設定変更、ホットリロード、バリデーション
 
 このフェーズの完了により、商用レベルの 3D アプリケーション開発が可能な本格的なエンジンとなります。
