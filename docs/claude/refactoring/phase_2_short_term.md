@@ -255,50 +255,62 @@ impl GraphicsEngine {
 
 ### 1.1 GraphicsEngine の分割
 
-**優先度**: 🔴 高
+**ステータス**: ✅ **完了** (2025-08-12)
 
-**現在の問題**:
+**実装済み内容**:
 ```rust
-// GraphicsEngine が複数の責任を持っている
-impl GraphicsEngine {
-    pub fn new() { ... }      // 初期化
-    pub fn resize() { ... }   // サイズ変更
-    pub fn render() { ... }   // レンダリング
-    // シーン管理、リソース管理、サーフェス管理...
-}
-```
-
-**改善後の設計**:
-```rust
-// src/graphics/renderer.rs (新規作成)
+// src/graphics/renderer.rs (新規作成完了)
 pub struct Renderer {
     device: Arc<wgpu::Device>,
-    queue: Arc<wgpu::Queue>,
-    command_encoder_pool: Vec<wgpu::CommandEncoder>,
+    clear_color: [f32; 4],
 }
 
-// src/graphics/surface_manager.rs (新規作成)  
+impl Renderer {
+    pub fn render_scene(
+        &self,
+        surface_view: &wgpu::TextureView,
+        scene: &dyn Scene,
+        resource_manager: &ResourceManager,
+    ) -> EngineResult<wgpu::CommandBuffer> {
+        // 純粋なレンダリングロジック、CommandBuffer返却
+    }
+}
+
+// src/graphics/surface_manager.rs (新規作成完了)  
 pub struct SurfaceManager {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    format: wgpu::TextureFormat,
+    caps: wgpu::SurfaceCapabilities,
 }
 
-// src/graphics/engine.rs (リファクタリング)
+impl SurfaceManager {
+    pub fn acquire_frame(&self) -> EngineResult<SurfaceFrame> {
+        // フレーム取得・管理
+    }
+    pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+        // リサイズ処理
+    }
+}
+
+// src/graphics/engine.rs (リファクタリング完了)
 pub struct GraphicsEngine {
-    renderer: Renderer,
     surface_manager: SurfaceManager,
-    // scene は外部から注入
+    renderer: Renderer,
+    resource_manager: ResourceManager,
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+    scene: Box<dyn Scene>,
+    config: RenderingConfig,
+    metrics: EngineMetrics,
 }
 ```
 
-**実装ステップ**:
-1. `Renderer` 構造体作成
-2. `SurfaceManager` 構造体作成  
-3. `GraphicsEngine` から機能を移行
-4. テスト追加
-5. 統合テスト
-
-**期待効果**: 単一責任原則の遵守、テスタビリティ向上
+**達成効果**: 
+- ✅ God Object（253行）→ 3コンポーネント分離
+- ✅ 単一責任原則の遵守
+- ✅ 後方互換性100%維持
+- ✅ テスタビリティ向上
 
 ### 1.2 設定システム統合完了
 
@@ -312,17 +324,97 @@ pub struct GraphicsEngine {
 - ✅ 全モジュールでの設定活用（App、Scene、Camera、GraphicsEngine）
 - ✅ 包括的なテストカバレッジ（15個のテストが通過）
 
-## 2. Scene システム強化
+## 2. Phase 2.2 残り項目（基盤整備）
 
-### 2.1 SceneManager の実装
+### 2.1 統合設定システム（constants.rs作成）
 
-**優先度**: 🟡 中
+**優先度**: 🔴 高
 
-**現状**: SceneManager が未使用状態
+**実装内容**:
+```rust
+// src/constants.rs (新規作成予定)
+// マジックナンバーの統一管理
 
-**改善内容**:
-```rust  
-// src/scene/manager.rs (リファクタリング)
+// ウィンドウ関連
+pub const DEFAULT_WINDOW_WIDTH: u32 = 800;
+pub const DEFAULT_WINDOW_HEIGHT: u32 = 600;
+pub const DEFAULT_WINDOW_TITLE: &str = "Demo Engine";
+
+// カメラ関連
+pub const DEFAULT_FOV_DEGREES: f32 = 45.0;
+pub const DEFAULT_Z_NEAR: f32 = 0.1;
+pub const DEFAULT_Z_FAR: f32 = 100.0;
+
+// 移動関連
+pub const DEFAULT_MOVE_SPEED: f32 = 5.0;
+pub const DEFAULT_ROTATION_SPEED: f32 = 1.0;
+pub const DEFAULT_MOUSE_SENSITIVITY: f32 = 0.001;
+
+// レンダリング関連
+pub const DEFAULT_CLEAR_COLOR: [f32; 4] = [0.5, 0.2, 0.2, 1.0];
+pub const DEFAULT_MSAA_SAMPLES: u32 = 1;
+
+// パフォーマンス関連
+pub const FRAME_TIME_BUFFER_SIZE: usize = 60;
+pub const LOW_FPS_THRESHOLD: f32 = 30.0;
+pub const HIGH_FRAME_TIME_THRESHOLD: f32 = 33.0; // ms
+```
+
+### 2.2 ログシステム導入
+
+**優先度**: 🔴 高
+
+**実装内容**:
+```rust
+// Cargo.toml追加予定
+[dependencies]
+log = "0.4"
+env_logger = "0.10"
+
+// src/main.rs
+use log::{debug, info, warn, error};
+
+fn main() {
+    env_logger::init();
+    info!("Starting Demo Engine");
+    // ...
+}
+
+// 各ファイルでのprintln!置換
+// Before: println!("GraphicsEngine::render called with dt={}", dt);
+// After:  debug!("GraphicsEngine::render called with dt={}", dt);
+```
+
+### 2.3 基本メトリクス実装拡張
+
+**優先度**: 🔴 高
+
+**実装内容**:
+```rust
+// src/core/metrics.rs 拡張予定
+impl EngineMetrics {
+    // 詳細統計の追加
+    pub fn get_avg_frame_time(&self) -> f32 { /* 平均フレーム時間 */ }
+    pub fn get_min_frame_time(&self) -> f32 { /* 最小フレーム時間 */ }
+    pub fn get_max_frame_time(&self) -> f32 { /* 最大フレーム時間 */ }
+    
+    // メモリ使用量監視
+    pub fn track_memory_usage(&mut self) { /* メモリ監視 */ }
+    
+    // GPU統計
+    pub fn track_gpu_time(&mut self, gpu_time: f32) { /* GPU時間追跡 */ }
+}
+```
+
+## 3. Phase 3移行項目（エンジン機能）
+
+### 3.1 Scene管理システム（Phase 3へ移行）
+
+**移行理由**: エンジン仕様策定が必要
+
+**Phase 3での実装予定**:
+```rust
+// 本格的なSceneManager設計
 pub struct SceneManager {
     scenes: HashMap<SceneId, Box<dyn Scene>>,
     current_scene: Option<SceneId>,
@@ -330,106 +422,30 @@ pub struct SceneManager {
 }
 
 pub enum SceneTransition {
-    FadeOut { duration: f32, elapsed: f32 },
-    FadeIn { duration: f32, elapsed: f32 },
-}
-
-impl SceneManager {
-    pub fn transition_to(&mut self, scene_id: SceneId, transition: SceneTransition) {
-        self.transition_state = Some(transition);
-        // transition logic
-    }
-    
-    pub fn update(&mut self, dt: f32, input: &InputState) {
-        // トランジション処理
-        if let Some(transition) = &mut self.transition_state {
-            // ...
-        }
-        
-        // 現在のシーン更新
-        if let Some(scene) = self.get_current_scene_mut() {
-            scene.update(dt, input);
-        }
-    }
+    Instant,
+    Fade { duration: f32, elapsed: f32 },
+    Slide { direction: SlideDirection, duration: f32, elapsed: f32 },
 }
 ```
 
-### 2.2 複数シーンサポート
+### 3.2 入力システム設計（Phase 3へ移行）
 
-**実装内容**:
+**移行理由**: カスタマイズ仕様の検討が必要
+
+**Phase 3での設計予定**:
 ```rust
-// src/scene/menu_scene.rs (新規作成)
-pub struct MenuScene {
-    // UI elements, buttons, etc.
-}
-
-// src/scene/game_scene.rs (新規作成)
-pub struct GameScene {
-    // Game objects, physics, etc.
-}
-
-// src/scene/mod.rs
-pub enum SceneType {
-    Menu,
-    Game,
-    Demo,
-}
-```
-
-## 3. 入力システム改善
-
-### 3.1 入力バインディング設定
-
-**優先度**: 🟡 中
-
-**実装内容**:
-```rust
-// src/input/bindings.rs (新規作成)
-use std::collections::HashMap;
-use winit::keyboard::KeyCode;
-
-#[derive(Debug, Clone)]
+// 本格的な入力バインディングシステム
 pub struct InputBindings {
     key_bindings: HashMap<String, Vec<KeyCode>>,
     mouse_bindings: HashMap<String, MouseButton>,
+    gamepad_bindings: HashMap<String, GamepadButton>,
 }
 
-impl InputBindings {
-    pub fn default_bindings() -> Self {
-        let mut bindings = HashMap::new();
-        bindings.insert("move_forward".to_string(), vec![KeyCode::KeyW]);
-        bindings.insert("move_backward".to_string(), vec![KeyCode::KeyS]);
-        bindings.insert("move_left".to_string(), vec![KeyCode::KeyA]);
-        bindings.insert("move_right".to_string(), vec![KeyCode::KeyD]);
-        bindings.insert("move_up".to_string(), vec![KeyCode::KeyE]);
-        bindings.insert("move_down".to_string(), vec![KeyCode::KeyQ]);
-        
-        Self { key_bindings: bindings, mouse_bindings: HashMap::new() }
-    }
-    
-    pub fn is_action_pressed(&self, input_state: &InputState, action: &str) -> bool {
-        if let Some(keys) = self.key_bindings.get(action) {
-            keys.iter().any(|key| input_state.is_key_pressed(*key))
-        } else {
-            false
-        }
-    }
-}
-
-// src/input/actions.rs (新規作成)
 pub enum InputAction {
-    MoveForward,
-    MoveBackward,
-    MoveLeft,
-    MoveRight,
-    MoveUp,  
-    MoveDown,
-    RotateLeft,
-    RotateRight,
-    RotateUp,
-    RotateDown,
-    Exit,
-    Pause,
+    Movement(MovementAction),
+    Camera(CameraAction),
+    UI(UIAction),
+    System(SystemAction),
 }
 ```
 
@@ -469,23 +485,268 @@ pub struct InputPlayer {
 
 **現状**: 単一クワッドのみレンダリング
 
-**改善内容**:
+#### **Transform システム導入**
+
 ```rust
-// src/scene/demo_scene.rs
-impl Scene for DemoScene {
-    fn initialize(&mut self, resource_manager: &mut ResourceManager) {
-        // 複数オブジェクトの追加
-        self.add_quad(glam::Vec3::new(0.0, 0.0, 0.0));
-        self.add_quad(glam::Vec3::new(2.0, 0.0, 0.0));
-        self.add_triangle(glam::Vec3::new(-2.0, 0.0, 0.0));
+// src/scene/transform.rs (新規作成)
+#[derive(Debug, Clone)]
+pub struct Transform {
+    pub position: glam::Vec3,
+    pub rotation: glam::Quat,
+    pub scale: glam::Vec3,
+}
+
+impl Transform {
+    pub fn new() -> Self {
+        Self {
+            position: glam::Vec3::ZERO,
+            rotation: glam::Quat::IDENTITY,
+            scale: glam::Vec3::ONE,
+        }
     }
     
-    fn add_quad(&mut self, position: glam::Vec3) {
-        // Quad の生成とRenderObjectの追加
+    pub fn with_position(mut self, position: glam::Vec3) -> Self {
+        self.position = position;
+        self
     }
     
-    fn add_triangle(&mut self, position: glam::Vec3) {
-        // Triangle の生成とRenderObjectの追加
+    pub fn with_rotation(mut self, rotation: glam::Quat) -> Self {
+        self.rotation = rotation;
+        self
+    }
+    
+    pub fn matrix(&self) -> glam::Mat4 {
+        glam::Mat4::from_scale_rotation_translation(
+            self.scale,
+            self.rotation,
+            self.position,
+        )
+    }
+}
+```
+
+#### **RenderObject拡張**
+
+```rust
+// src/scene/render_object.rs (リファクタリング)
+pub struct RenderObject {
+    pub mesh_id: ResourceId,
+    pub pipeline_id: ResourceId,
+    pub transform: Transform, // _transform → transform
+    pub visible: bool,
+    pub id: ObjectId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectId(u32);
+
+impl RenderObject {
+    pub fn new(mesh_id: ResourceId, pipeline_id: ResourceId) -> Self {
+        Self {
+            mesh_id,
+            pipeline_id,
+            transform: Transform::new(),
+            visible: true,
+            id: ObjectId::generate(),
+        }
+    }
+    
+    pub fn with_transform(mut self, transform: Transform) -> Self {
+        self.transform = transform;
+        self
+    }
+    
+    pub fn get_model_matrix(&self) -> glam::Mat4 {
+        self.transform.matrix()
+    }
+}
+```
+
+#### **複数オブジェクト管理**
+
+```rust
+// src/scene/demo_scene.rs (拡張)
+impl DemoScene {
+    pub fn add_quad(&mut self, position: glam::Vec3) {
+        let mesh_id = ResourceId::new("basic_mesh");
+        let pipeline_id = ResourceId::new("basic_pipeline");
+        
+        let transform = Transform::new()
+            .with_position(position)
+            .with_scale(glam::Vec3::new(0.8, 0.8, 1.0));
+        
+        let render_object = RenderObject::new(mesh_id, pipeline_id)
+            .with_transform(transform);
+        
+        self.render_objects.push(render_object);
+    }
+    
+    pub fn add_triangle(&mut self, position: glam::Vec3) {
+        let mesh_id = ResourceId::new("triangle_mesh");
+        let pipeline_id = ResourceId::new("basic_pipeline");
+        
+        let transform = Transform::new()
+            .with_position(position)
+            .with_rotation(glam::Quat::from_rotation_z(0.3));
+        
+        let render_object = RenderObject::new(mesh_id, pipeline_id)
+            .with_transform(transform);
+        
+        self.render_objects.push(render_object);
+    }
+    
+    pub fn remove_object(&mut self, id: ObjectId) -> bool {
+        let before_len = self.render_objects.len();
+        self.render_objects.retain(|obj| obj.id != id);
+        self.render_objects.len() < before_len
+    }
+}
+```
+
+### 4.1.5 プリミティブ種類拡張
+
+**優先度**: 🟡 中
+
+**拡張対象**: Quad, Triangle → Circle, Pentagon, Cube
+
+#### **新プリミティブ実装**
+
+```rust
+// src/resources/primitives/circle.rs (新規作成)
+pub struct Circle {
+    pub radius: f32,
+    pub segments: u32,
+}
+
+impl Circle {
+    pub fn new(radius: f32, segments: u32) -> Self {
+        Self { radius, segments }
+    }
+}
+
+impl Primitive for Circle {
+    type Vertex = ColorVertex;
+    
+    fn create_vertices() -> Vec<Self::Vertex> {
+        Self::new(0.5, 32).create_vertices_with_params()
+    }
+    
+    fn create_indices() -> Option<Vec<u16>> {
+        Self::new(0.5, 32).create_indices_with_params()
+    }
+}
+
+impl Circle {
+    fn create_vertices_with_params(&self) -> Vec<ColorVertex> {
+        let mut vertices = vec![
+            // 中心点
+            ColorVertex {
+                position: [0.0, 0.0, 0.0],
+                color: [1.0, 1.0, 1.0],
+            }
+        ];
+        
+        // 円周の頂点（グラデーション色）
+        for i in 0..=self.segments {
+            let angle = 2.0 * std::f32::consts::PI * i as f32 / self.segments as f32;
+            let x = self.radius * angle.cos();
+            let y = self.radius * angle.sin();
+            
+            let hue = i as f32 / self.segments as f32;
+            let color = hsv_to_rgb(hue, 1.0, 1.0);
+            
+            vertices.push(ColorVertex {
+                position: [x, y, 0.0],
+                color,
+            });
+        }
+        
+        vertices
+    }
+}
+
+// src/resources/primitives/pentagon.rs (新規作成)
+pub struct Pentagon;
+
+impl Primitive for Pentagon {
+    type Vertex = ColorVertex;
+    
+    fn create_vertices() -> Vec<Self::Vertex> {
+        let mut vertices = vec![
+            ColorVertex { position: [0.0, 0.0, 0.0], color: [1.0, 1.0, 1.0] }
+        ];
+        
+        // 五角形の頂点
+        for i in 0..5 {
+            let angle = 2.0 * std::f32::consts::PI * i as f32 / 5.0 - std::f32::consts::PI / 2.0;
+            let x = 0.5 * angle.cos();
+            let y = 0.5 * angle.sin();
+            
+            let color = match i {
+                0 => [1.0, 0.0, 0.0], 1 => [0.0, 1.0, 0.0], 2 => [0.0, 0.0, 1.0],
+                3 => [1.0, 1.0, 0.0], 4 => [1.0, 0.0, 1.0], _ => [1.0, 1.0, 1.0],
+            };
+            
+            vertices.push(ColorVertex { position: [x, y, 0.0], color });
+        }
+        
+        vertices
+    }
+    
+    fn create_indices() -> Option<Vec<u16>> {
+        Some(vec![0, 1, 2,  0, 2, 3,  0, 3, 4,  0, 4, 5,  0, 5, 1])
+    }
+}
+
+// src/resources/primitives/cube.rs (新規作成)
+pub struct Cube {
+    pub size: f32,
+}
+
+impl Cube {
+    pub fn new(size: f32) -> Self { Self { size } }
+    
+    fn create_vertices_with_size(&self) -> Vec<ColorVertex> {
+        let s = self.size * 0.5;
+        vec![
+            // 前面 (Z+) - 赤系
+            ColorVertex { position: [-s, -s,  s], color: [1.0, 0.0, 0.0] },
+            ColorVertex { position: [ s, -s,  s], color: [0.0, 1.0, 0.0] },
+            ColorVertex { position: [ s,  s,  s], color: [0.0, 0.0, 1.0] },
+            ColorVertex { position: [-s,  s,  s], color: [1.0, 1.0, 0.0] },
+            
+            // 背面 (Z-) - 青系
+            ColorVertex { position: [-s, -s, -s], color: [1.0, 0.0, 1.0] },
+            ColorVertex { position: [ s, -s, -s], color: [0.0, 1.0, 1.0] },
+            ColorVertex { position: [ s,  s, -s], color: [1.0, 1.0, 1.0] },
+            ColorVertex { position: [-s,  s, -s], color: [0.5, 0.5, 0.5] },
+        ]
+    }
+    
+    fn create_indices_cube(&self) -> Option<Vec<u16>> {
+        Some(vec![
+            0, 1, 2,  0, 2, 3,  // 前面
+            4, 6, 5,  4, 7, 6,  // 背面
+            4, 0, 3,  4, 3, 7,  // 左面
+            1, 5, 6,  1, 6, 2,  // 右面
+            3, 2, 6,  3, 6, 7,  // 上面
+            4, 5, 1,  4, 1, 0,  // 下面
+        ])
+    }
+}
+```
+
+#### **統合デモシーン**
+
+```rust
+impl DemoScene {
+    pub fn create_demo_objects(&mut self) {
+        // バラエティに富んだオブジェクト配置
+        self.add_quad(glam::Vec3::new(0.0, 0.0, 0.0));        // 中央四角形
+        self.add_triangle(glam::Vec3::new(-2.0, 0.0, 0.0));   // 左三角形
+        self.add_circle(glam::Vec3::new(2.0, 0.0, 0.0), 0.6); // 右円
+        self.add_pentagon(glam::Vec3::new(0.0, 2.0, 0.0));    // 上五角形
+        self.add_cube(glam::Vec3::new(0.0, -2.0, -1.0), 0.8); // 下立方体
     }
 }
 ```
@@ -653,32 +914,58 @@ impl Profiler {
 - [x] **テストインフラ** - ConfigとCameraのユニットテスト完了（15個のテスト通過）
 - [x] **設定統合** - App、Scene、Camera、GraphicsEngineに設定適用完了
 
-### Week 1 🚧 **進行中**
-- [ ] GraphicsEngine 分割設計
-- [ ] Renderer 構造体実装
-- [ ] SurfaceManager 構造体実装
-- [ ] SceneManager リファクタリング
+### Phase 2.1 ✅ **完了** (2025-08-12)
+- [x] **GraphicsEngine 分割設計** - 3層アーキテクチャ設計完了
+- [x] **Renderer 構造体実装** - CommandBuffer返却方式
+- [x] **SurfaceManager 構造体実装** - フレーム管理・リサイズ対応
+- [x] **統合・後方互換性** - 既存API維持、テスト通過
 
-### Week 2  
-- [ ] 入力バインディングシステム
-- [ ] Transform システム
-- [ ] マルチオブジェクト対応
-- [ ] エラー回復機能
-- [ ] ログシステム統合
+### Phase 2.2 🚧 **残り項目** (3-5日予定)
+- [ ] **constants.rs作成** - マジックナンバー統一管理
+- [ ] **ログシステム導入** - println! → log::debug! 置換
+- [ ] **基本メトリクス拡張** - 詳細統計・メモリ監視
+
+### Phase 2.3 🎨 **レンダリング拡張** (オプション)
+- [ ] **Transform システム** - 位置・回転・スケール制御
+- [ ] **マルチオブジェクト** - 複数オブジェクト同時表示
+- [ ] **プリミティブ拡張** - Circle, Pentagon, Cube追加
+
+### Phase 3移行項目 📋 **仕様策定段階**
+- [ ] **Scene管理システム** - SceneManager設計・遷移システム
+- [ ] **入力システム設計** - InputBinding・カスタマイズ対応
+- [ ] **リソース管理拡張** - 動的ロード・最適化
 
 ### テスト ✅ **部分完了**
 - [x] **Config系ユニットテスト** - 7個のテスト通過
-- [x] **Camera系ユニットテスト** - 8個のテスト通過
-- [ ] 各新機能のユニットテスト
-- [ ] 統合テスト
+- [x] **Camera系ユニットテスト** - 8個のテスト通過  
+- [x] **GraphicsEngine統合テスト** - 分割後の動作確認完了
+- [ ] Phase 2.2新機能のユニットテスト
 - [ ] パフォーマンステスト
 
 ## 期待される改善効果
 
-1. **保守性**: 責任分離、設定外部化
-2. **拡張性**: マルチシーン、Transform システム  
-3. **安定性**: エラー回復、ログシステム
-4. **ユーザビリティ**: 設定可能な入力、複数オブジェクト
-5. **開発体験**: プロファイリング、構造化ログ
+### Phase 2.1完了による効果 ✅
+1. **保守性向上**: God Object解決、単一責任原則の実現
+2. **テスタビリティ**: 独立したコンポーネントテスト可能
+3. **拡張性**: 各コンポーネントの独立した拡張
+4. **コード品質**: 253行→3つの責任特化コンポーネント
 
-このフェーズの完了により、より本格的な 3D アプリケーション開発の基盤が整います。
+### Phase 2.2完了予想効果 🎯
+1. **開発効率**: 構造化ログによるデバッグ改善
+2. **設定管理**: constants.rsによるマジックナンバー解消
+3. **パフォーマンス**: 詳細メトリクスによる最適化指針
+4. **安定性**: 統一された基盤システム
+
+### Phase 2.3完了予想効果 🎨
+1. **視覚的豊かさ**: 多様な図形の同時表示 
+2. **3D表現**: 立方体による奥行き感
+3. **Transform制御**: 位置・回転・スケールの独立制御
+4. **拡張性**: 新プリミティブの容易な追加
+
+### Phase 3準備効果 🚀  
+1. **設計品質**: エンジン仕様の慎重な策定
+2. **機能完成度**: Scene管理・入力システムの本格実装
+3. **拡張性**: 将来の機能追加基盤
+4. **エンジン成熟度**: プロダクションレディな設計
+
+このフェーズ区分により、基盤整備とエンジン機能開発の明確な分離が実現されます。

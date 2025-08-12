@@ -1,32 +1,102 @@
-# Phase 3: 長期改善
+# Phase 3: エンジン機能拡張
 
-> **目標**: 本格的な 3D エンジンへの発展  
-> **期間**: 1-3ヶ月  
-> **リスク**: 高  
-> **前提条件**: Phase 1, 2 完了
+> **目標**: 本格的なエンジン仕様の策定と実装  
+> **期間**: 2-3週間  
+> **リスク**: 中  
+> **前提条件**: Phase 2完了 (GraphicsEngine分割 + 基盤整備)
 
-## 1. アーキテクチャの完全再設計
+## 1. エンジン基盤機能
 
-### 1.1 Entity Component System (ECS) 導入
+### 1.1 Scene管理システム
 
 **優先度**: 🔴 高
 
-**現在の問題**:
-- オブジェクト階層の欠如
-- スケーラビリティの限界
-- コンポーネントの再利用性が低い
+**現在の状況**: 単一DemoScene固定
 
-**ECS 設計**:
+**新設計**: 本格的なScene管理
 ```rust
-// src/ecs/mod.rs (新規作成)
-pub mod entity;
-pub mod component;
-pub mod system;
-pub mod world;
+// src/scene/manager.rs (本格実装)
+pub struct SceneManager {
+    scenes: HashMap<SceneId, Box<dyn Scene>>,
+    current_scene: Option<SceneId>,
+    transition_state: Option<SceneTransition>,
+    pending_scene: Option<SceneId>,
+}
 
-// src/ecs/entity.rs
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Entity(u32);
+pub enum SceneTransition {
+    Instant,
+    Fade { 
+        duration: f32, 
+        elapsed: f32,
+        alpha: f32,
+    },
+    Slide { 
+        direction: SlideDirection, 
+        duration: f32, 
+        elapsed: f32,
+        offset: f32,
+    },
+    Custom {
+        update_fn: Box<dyn Fn(f32) -> TransitionState>,
+    },
+}
+
+pub enum SlideDirection {
+    Left, Right, Up, Down,
+}
+
+impl SceneManager {
+    pub fn register_scene(&mut self, id: SceneId, scene: Box<dyn Scene>)
+    pub fn transition_to(&mut self, scene_id: SceneId, transition: SceneTransition)
+    pub fn update(&mut self, dt: f32, input: &InputState)
+    pub fn render(&self, renderer: &Renderer) -> Vec<RenderCommand>
+}
+
+### 1.2 入力システム設計
+
+**優先度**: 🔴 高
+
+**現在の状況**: 基本的なHashSet<KeyCode>
+
+**新設計**: カスタマイズ可能な入力システム
+```rust
+// src/input/bindings.rs (本格実装)
+pub struct InputBindings {
+    key_bindings: HashMap<String, Vec<KeyCode>>,
+    mouse_bindings: HashMap<String, MouseButton>,
+    gamepad_bindings: HashMap<String, GamepadButton>,
+    combo_bindings: HashMap<String, InputCombo>,
+}
+
+pub struct InputCombo {
+    keys: Vec<KeyCode>,
+    modifiers: Vec<KeyCode>, // Ctrl, Alt, Shift
+    sequence: bool, // true: 順次入力, false: 同時入力
+}
+
+pub enum InputAction {
+    Movement(MovementAction),
+    Camera(CameraAction),
+    UI(UIAction),
+    System(SystemAction),
+}
+
+pub enum MovementAction {
+    Forward, Backward, Left, Right, Up, Down,
+    Sprint, Walk, Crouch,
+}
+
+pub enum CameraAction {
+    Look, Zoom, Reset,
+    FirstPerson, ThirdPerson,
+}
+
+impl InputBindings {
+    pub fn load_from_config(path: &str) -> EngineResult<Self>
+    pub fn save_to_config(&self, path: &str) -> EngineResult<()>
+    pub fn is_action_active(&self, input_state: &InputState, action: &str) -> bool
+    pub fn get_action_strength(&self, input_state: &InputState, action: &str) -> f32
+}
 
 pub struct EntityManager {
     next_id: u32,
