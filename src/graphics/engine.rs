@@ -6,6 +6,7 @@ use crate::{
         error::{EngineError, EngineResult},
         metrics::EngineMetrics,
     },
+    graphics::{renderer::Renderer, surface_manager::SurfaceManager},
     resources::manager::ResourceManager,
     scene::Scene,
     window::Window,
@@ -30,11 +31,11 @@ pub struct GraphicsEngine {
     resource_manager: ResourceManager,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    surface: wgpu::Surface<'static>,
-    surface_config: wgpu::SurfaceConfiguration,
     scene: Box<dyn Scene>,
     config: RenderingConfig,
     metrics: EngineMetrics,
+    surface_manager: SurfaceManager,
+    renderer: Renderer,
 }
 
 impl GraphicsEngine {
@@ -87,43 +88,16 @@ impl GraphicsEngine {
             .await
             .map_err(|e| EngineError::DeviceRequest(format!("Failed to request device: {}", e)))?;
 
-        let winit_window = window.get_window();
-
-        let surface = instance.create_surface(winit_window.clone()).map_err(|e| {
-            EngineError::SurfaceCreation(format!("Failed to create surface: {}", e))
-        })?;
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
-
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: winit_window.inner_size().width,
-            height: winit_window.inner_size().height,
-            present_mode: if config.vsync {
-                wgpu::PresentMode::Fifo
-            } else {
-                wgpu::PresentMode::Immediate
-            },
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
-        surface.configure(&device, &surface_config);
+        let surface_manager = SurfaceManager::new(&instance, &window, &adapter, &device, config)?;
 
         let device = Arc::new(device);
 
         let queue: Arc<wgpu::Queue> = Arc::new(queue);
 
+        let renderer = Renderer::new(device.clone(), config.clear_color);
+
         let mut resource_manager =
-            ResourceManager::new(device.clone(), queue.clone(), surface_format);
+            ResourceManager::new(device.clone(), queue.clone(), surface_manager.format());
 
         // シーンを初期化
         scene.initialize(&mut resource_manager);
@@ -134,27 +108,16 @@ impl GraphicsEngine {
             resource_manager,
             device,
             queue,
-            surface,
-            surface_config,
             scene,
             config: config.clone(),
             metrics,
+            surface_manager,
+            renderer,
         })
     }
 
-    /// Resizes the rendering surface to the specified dimensions.
-    ///
-    /// # Arguments
-    ///
-    /// * `width` - New width in pixels (ignored if 0)
-    /// * `height` - New height in pixels (ignored if 0)
     pub fn resize(&mut self, width: u32, height: u32) {
-        if width == 0 || height == 0 {
-            return;
-        }
-        self.surface_config.width = width;
-        self.surface_config.height = height;
-        self.surface.configure(&self.device, &self.surface_config);
+        self.surface_manager.resize(&self.device, width, height);
     }
 
     /// Renders a single frame.
@@ -178,13 +141,6 @@ impl GraphicsEngine {
         // シーン更新
         log::debug!("GraphicsEngine::render called with dt={}", dt);
         self.scene.update(dt, input);
-        let frame = self.surface.get_current_texture().map_err(|e| {
-            EngineError::RenderError(format!("Failed to acquire next surface texture: {}", e))
-        })?;
-
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
 
         // カメラユニフォーム更新（毎フレーム）
         self.scene.update_camera_uniform();
@@ -193,60 +149,16 @@ impl GraphicsEngine {
                 .update_uniform_buffer(camera_buffer.as_ref(), self.scene.get_camera_uniform());
         }
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        let surface_frame = self.surface_manager.acquire_frame()?;
 
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: self.config.clear_color[0] as f64,
-                            g: self.config.clear_color[1] as f64,
-                            b: self.config.clear_color[2] as f64,
-                            a: self.config.clear_color[3] as f64,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
+        let command_buffer = self.renderer.render_scene(
+            &surface_frame.view,
+            self.scene.as_ref(),
+            &self.resource_manager,
+        )?;
 
-            // カメラバインドグループを一度だけ設定（全オブジェクト共通）
-            if let Some(camera_bind_group) = self.scene.get_camera_bind_group() {
-                render_pass.set_bind_group(0, camera_bind_group.as_ref(), &[]);
-            }
-
-            for object in self.scene.as_ref().get_render_objects() {
-                if let (Some(pipeline), Some(mesh)) = (
-                    self.resource_manager.get_pipeline(&object.pipeline_id),
-                    self.resource_manager.get_mesh(&object.mesh_id),
-                ) {
-                    render_pass.set_pipeline(&pipeline);
-                    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-
-                    if let Some(index_buffer) = &mesh.index_buffer {
-                        render_pass
-                            .set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                        render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-                    } else {
-                        render_pass.draw(0..mesh.vertex_count, 0..1);
-                    }
-                }
-            }
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        frame.present();
+        self.queue.submit(std::iter::once(command_buffer));
+        surface_frame.present();
         Ok(())
     }
 }
