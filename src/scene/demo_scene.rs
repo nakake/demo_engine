@@ -52,8 +52,10 @@ impl DemoScene {
             .register_mesh(mesh_id, Arc::new(quad_mesh));
 
         let transform = Transform::new().with_position(position);
-        let render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let mut render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
         let render_object_id = render_object.id;
+        
+        self.create_model_resource(&mut render_object);
         self.render_objects.push(render_object);
 
         render_object_id
@@ -67,8 +69,10 @@ impl DemoScene {
             .register_mesh(mesh_id, Arc::new(triangle_mesh));
 
         let transform = Transform::new().with_position(position);
-        let render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let mut render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
         let render_object_id = render_object.id;
+        
+        self.create_model_resource(&mut render_object);
         self.render_objects.push(render_object);
 
         render_object_id
@@ -78,6 +82,54 @@ impl DemoScene {
         self.resource_manager
             .as_mut()
             .expect("Scene not initialized")
+    }
+
+    fn create_model_resource(&mut self, render_object: &mut RenderObject) {
+        let resource_manager = self.get_resource_manager_mut();
+
+        let model_uniform = render_object.get_model_uniform_data();
+        let model_buffer_id =
+            ResourceId::new(&format!("model_buffer_{}", render_object.id.as_u32()));
+
+        let model_buffer = resource_manager
+            .create_uniform_buffer(model_buffer_id, &model_uniform)
+            .expect("Failed to create model buffer");
+
+        render_object.model_buffer = Some(model_buffer.clone());
+
+        // Create model bind group layout
+        let model_bind_group_layout = resource_manager
+            .get_device()
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Model Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        // Create model bind group
+        let model_bind_group_id =
+            ResourceId::new(&format!("model_bind_group_{}", render_object.id.as_u32()));
+        
+        let model_bind_group = resource_manager
+            .create_bind_group(
+                model_bind_group_id,
+                &model_bind_group_layout,
+                &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: model_buffer.as_entire_binding(),
+                }],
+            )
+            .expect("Failed to create model bind group");
+
+        render_object.model_bind_group = Some(model_bind_group);
     }
 }
 
@@ -99,11 +151,28 @@ impl Scene for DemoScene {
             return;
         };
 
-        let bind_group_layout = self
+        let camera_bind_group_layout = self
             .get_resource_manager_mut()
             .get_device()
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Camera Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let model_bind_group_layout = self
+            .get_resource_manager_mut()
+            .get_device()
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Model Uniform Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
@@ -124,7 +193,7 @@ impl Scene for DemoScene {
             shader_id,
             ColorVertex::desc(),
             surface_format,
-            &[&bind_group_layout],
+            &[&camera_bind_group_layout, &model_bind_group_layout],
         ) {
             log::error!("Failed to create pipeline: {}", e);
             return;
@@ -147,7 +216,7 @@ impl Scene for DemoScene {
             .get_resource_manager_mut()
             .create_bind_group(
                 bind_group_id,
-                &bind_group_layout,
+                &camera_bind_group_layout,
                 &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: camera_buffer.as_entire_binding(),

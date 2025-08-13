@@ -17,3 +17,9 @@ impl CameraUniform {
         self.view_proj = camera.build_view_proj_matrix().to_cols_array_2d();
     }
 }
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ModelUniform {
+    pub model: [[f32; 4]; 4],
+}

@@ -1,6 +1,12 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, Ordering},
+};
 
-use crate::{resources::manager::ResourceId, scene::transform::Transform};
+use crate::{
+    resources::{manager::ResourceId, uniforms::ModelUniform},
+    scene::transform::Transform,
+};
 
 static NEXT_OBJECT_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -22,6 +28,8 @@ pub struct RenderObject {
     pub transform: Transform,
     pub visible: bool,
     pub id: ObjectId,
+    pub model_buffer: Option<Arc<wgpu::Buffer>>,
+    pub model_bind_group: Option<Arc<wgpu::BindGroup>>,
 }
 
 impl RenderObject {
@@ -32,6 +40,8 @@ impl RenderObject {
             transform: Transform::new(),
             visible: true,
             id: ObjectId::generate(),
+            model_buffer: None,
+            model_bind_group: None,
         }
     }
 
@@ -46,5 +56,11 @@ impl RenderObject {
 
     pub fn set_visible(&mut self, visible: bool) {
         self.visible = visible
+    }
+
+    pub fn get_model_uniform_data(&self) -> ModelUniform {
+        ModelUniform {
+            model: self.transform.matrix().to_cols_array_2d(),
+        }
     }
 }

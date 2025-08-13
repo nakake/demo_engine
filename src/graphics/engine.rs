@@ -104,7 +104,16 @@ impl GraphicsEngine {
         scene.add_object(
             ObjectType::Quad,
             glam::Vec3 {
-                x: 0.0,
+                x: 2.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        );
+
+        scene.add_object(
+            ObjectType::Triangle,
+            glam::Vec3 {
+                x: -2.0,
                 y: 0.0,
                 z: 0.0,
             },
@@ -157,7 +166,7 @@ impl GraphicsEngine {
         let command_buffer = self.renderer.render_scene(
             &surface_frame.view,
             self.scene.as_ref(),
-            &self.scene.get_resource_manager(),
+            self.scene.get_resource_manager(),
         )?;
 
         self.queue.submit(std::iter::once(command_buffer));

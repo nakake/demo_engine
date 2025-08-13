@@ -8,8 +8,8 @@ impl Transform {
     pub fn new() -> Self {
         Self {
             position: glam::vec3(0.0, 0.0, 0.0),
-            rotation: glam::quat(0.0, 0.0, 0.0, 0.0),
-            scale: glam::vec3(0.0, 0.0, 0.0),
+            rotation: glam::Quat::IDENTITY,
+            scale: glam::vec3(1.0, 1.0, 1.0),
         }
     }
 

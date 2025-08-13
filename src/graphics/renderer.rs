@@ -35,11 +35,20 @@ impl Renderer {
             }
 
             for object in scene.get_render_objects() {
+                if !object.visible {
+                    continue;
+                }
+
                 if let (Some(pipeline), Some(mesh)) = (
                     resource_manager.get_pipeline(&object.pipeline_id),
                     resource_manager.get_mesh(&object.mesh_id),
                 ) {
                     render_pass.set_pipeline(&pipeline);
+
+                    if let Some(model_bind_group) = &object.model_bind_group {
+                        render_pass.set_bind_group(1, model_bind_group.as_ref(), &[]);
+                    }
+
                     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
 
                     if let Some(index_buffer) = &mesh.index_buffer {
@@ -64,7 +73,7 @@ impl Renderer {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
