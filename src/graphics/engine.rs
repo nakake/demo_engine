@@ -102,19 +102,10 @@ impl GraphicsEngine {
         scene.initialize(resource_manager);
 
         scene.add_object(
-            ObjectType::Quad,
-            glam::Vec3 {
-                x: 2.0,
-                y: 0.0,
-                z: 0.0,
-            },
-        );
-
-        scene.add_object(
-            ObjectType::Triangle,
+            ObjectType::Sphere,
             glam::Vec3 {
                 x: -2.0,
-                y: 0.0,
+                y: -2.0,
                 z: 0.0,
             },
         );

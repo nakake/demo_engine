@@ -5,7 +5,9 @@ use crate::{
     input::InputState,
     resources::{
         manager::{ResourceId, ResourceManager},
-        primitives::{ObjectType, Primitive, quad::Quad, triangle::Triangle},
+        primitives::{
+            ObjectType, Primitive, cube::Cube, quad::Quad, sphere::Sphere, triangle::Triangle,
+        },
         uniforms::CameraUniform,
         vertex::{ColorVertex, VertexTrait},
     },
@@ -52,9 +54,10 @@ impl DemoScene {
             .register_mesh(mesh_id, Arc::new(quad_mesh));
 
         let transform = Transform::new().with_position(position);
-        let mut render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let mut render_object =
+            RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
         let render_object_id = render_object.id;
-        
+
         self.create_model_resource(&mut render_object);
         self.render_objects.push(render_object);
 
@@ -69,9 +72,46 @@ impl DemoScene {
             .register_mesh(mesh_id, Arc::new(triangle_mesh));
 
         let transform = Transform::new().with_position(position);
-        let mut render_object = RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let mut render_object =
+            RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
         let render_object_id = render_object.id;
-        
+
+        self.create_model_resource(&mut render_object);
+        self.render_objects.push(render_object);
+
+        render_object_id
+    }
+
+    fn add_cube(&mut self, position: glam::Vec3) -> ObjectId {
+        let cube_mesh = Cube::create_mesh(self.get_resource_manager_mut().get_device());
+
+        let mesh_id = ResourceId::new(&format!("cube_mesh_{}", self.render_objects.len()));
+        self.get_resource_manager_mut()
+            .register_mesh(mesh_id, Arc::new(cube_mesh));
+
+        let transform = Transform::new().with_position(position);
+        let mut render_object =
+            RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let render_object_id = render_object.id;
+
+        self.create_model_resource(&mut render_object);
+        self.render_objects.push(render_object);
+
+        render_object_id
+    }
+
+    fn add_sphere(&mut self, position: glam::Vec3) -> ObjectId {
+        let sphere_mesh = Sphere::create_mesh(self.get_resource_manager_mut().get_device());
+
+        let mesh_id = ResourceId::new(&format!("sphere_mesh_{}", self.render_objects.len()));
+        self.get_resource_manager_mut()
+            .register_mesh(mesh_id, Arc::new(sphere_mesh));
+
+        let transform = Transform::new().with_position(position);
+        let mut render_object =
+            RenderObject::new(mesh_id, self.pipeline_id).with_transform(transform);
+        let render_object_id = render_object.id;
+
         self.create_model_resource(&mut render_object);
         self.render_objects.push(render_object);
 
@@ -98,9 +138,8 @@ impl DemoScene {
         render_object.model_buffer = Some(model_buffer.clone());
 
         // Create model bind group layout
-        let model_bind_group_layout = resource_manager
-            .get_device()
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let model_bind_group_layout = resource_manager.get_device().create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
                 label: Some("Model Uniform Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -112,12 +151,13 @@ impl DemoScene {
                     },
                     count: None,
                 }],
-            });
+            },
+        );
 
         // Create model bind group
         let model_bind_group_id =
             ResourceId::new(&format!("model_bind_group_{}", render_object.id.as_u32()));
-        
+
         let model_bind_group = resource_manager
             .create_bind_group(
                 model_bind_group_id,
@@ -258,6 +298,8 @@ impl Scene for DemoScene {
         match object_type {
             ObjectType::Quad => self.add_quad(position),
             ObjectType::Triangle => self.add_triangle(position),
+            ObjectType::Cube => self.add_cube(position),
+            ObjectType::Sphere => self.add_sphere(position),
         }
     }
 

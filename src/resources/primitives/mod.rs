@@ -1,4 +1,6 @@
+pub mod cube;
 pub mod quad;
+pub mod sphere;
 pub mod triangle;
 
 use std::sync::Arc;
@@ -22,4 +24,6 @@ pub trait Primitive {
 pub enum ObjectType {
     Triangle,
     Quad,
+    Cube,
+    Sphere,
 }
