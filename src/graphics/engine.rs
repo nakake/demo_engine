@@ -7,7 +7,7 @@ use crate::{
         metrics::EngineMetrics,
     },
     graphics::{renderer::Renderer, surface_manager::SurfaceManager},
-    resources::manager::ResourceManager,
+    resources::{manager::ResourceManager, primitives::ObjectType},
     scene::Scene,
     window::Window,
 };
@@ -28,7 +28,6 @@ use crate::{
 /// engine.render(dt, &input_state)?;
 /// ```
 pub struct GraphicsEngine {
-    resource_manager: ResourceManager,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     scene: Box<dyn Scene>,
@@ -96,16 +95,24 @@ impl GraphicsEngine {
 
         let renderer = Renderer::new(device.clone(), config.clear_color);
 
-        let mut resource_manager =
+        let resource_manager =
             ResourceManager::new(device.clone(), queue.clone(), surface_manager.format());
 
         // シーンを初期化
-        scene.initialize(&mut resource_manager);
+        scene.initialize(resource_manager);
+
+        scene.add_object(
+            ObjectType::Quad,
+            glam::Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        );
 
         let metrics = EngineMetrics::new();
 
         Ok(GraphicsEngine {
-            resource_manager,
             device,
             queue,
             scene,
@@ -144,17 +151,13 @@ impl GraphicsEngine {
 
         // カメラユニフォーム更新（毎フレーム）
         self.scene.update_camera_uniform();
-        if let Some(camera_buffer) = self.scene.get_camera_buffer() {
-            self.resource_manager
-                .update_uniform_buffer(camera_buffer.as_ref(), self.scene.get_camera_uniform());
-        }
 
         let surface_frame = self.surface_manager.acquire_frame()?;
 
         let command_buffer = self.renderer.render_scene(
             &surface_frame.view,
             self.scene.as_ref(),
-            &self.resource_manager,
+            &self.scene.get_resource_manager(),
         )?;
 
         self.queue.submit(std::iter::once(command_buffer));

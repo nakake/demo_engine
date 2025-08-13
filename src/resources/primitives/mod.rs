@@ -18,3 +18,8 @@ pub trait Primitive {
         Mesh::new(device, &vertices, indices.as_deref())
     }
 }
+
+pub enum ObjectType {
+    Triangle,
+    Quad,
+}
